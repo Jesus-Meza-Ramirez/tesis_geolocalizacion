@@ -100,7 +100,7 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get("DB_NAME", "control_interno"),
+        'NAME': os.environ.get("DB_NAME", "tesis_geolocalizacion"),
         'USER': os.environ.get("DB_USER", "root"),
         'PASSWORD': os.environ.get("DB_PASSWORD", ""),
         'HOST': os.environ.get("DB_HOST", "localhost"),

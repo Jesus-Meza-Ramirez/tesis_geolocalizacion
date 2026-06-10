@@ -9,16 +9,24 @@
     html, body { height:100%; width:100%; margin:0; }
     body { background:#0f1e25; }
     .login-wrapper { display:flex; min-height:100vh; width:100vw; }
-    .login-left  { flex:1.2; background:url("{% static 'img/login-bg.jpg' %}") center/cover no-repeat; }
-    .login-right { flex:0.8; background:#157a6e; display:flex; align-items:center; justify-content:center; padding:48px 24px; }
-    .form-card { width:100%; max-width:420px; background:rgba(0,0,0,.18); border-radius:14px; padding:28px; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+    .login-left  { flex:1.2; background:url("{% static 'img/Imagen2.png' %}") center/cover no-repeat; }
+    .login-right { flex:0.8; background:#ffffff; display:flex; align-items:center; justify-content:center; padding:48px 24px; }
+    .form-card {
+    width:100%;
+    max-width:500px;
+    background:#ffffff;
+    border-radius:24px;
+    padding:32px;
+    color:#1f2937;
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
+    } 
     .logo { text-align:center; margin-bottom:10px; }
-    .logo img { width:150px; }
-    .welcome { font-size:28px; font-weight:800; margin:6px 0 18px; }
-    label { display:block; font-size:14px; margin-bottom:6px; color:#eaf2f1; }
+    .logo img { width:180px; }
+    .welcome { font-size:28px; color:#1f2937; font-weight:800; margin:6px 0 18px; }
+    label { display:block; font-size:14px; margin-bottom:6px; color:#374151; }
     input { width:100%; padding:11px 12px; border:none; border-radius:8px; margin-bottom:14px; outline:none; font-size:15px; background:#eef2f5; color:#0b1720; }
     .forgot { text-align:right; font-size:13px; margin:-6px 0 14px; }
-    .forgot a { color:#fde68a; text-decoration:none; }
+    .forgot a { color:#f7941d; text-decoration:none; }
     .btn-login { width:100%; background:#f59e0b; border:none; color:#fff; padding:12px; font-weight:700; border-radius:10px; cursor:pointer; }
     @media (max-width:900px){ .login-left{display:none;} .login-right{flex:1;} .form-card{max-width:500px;} }
   </style>
@@ -28,7 +36,7 @@
     <div class="login-left"></div>
     <div class="login-right">
       <div class="form-card">
-        <div class="logo"><img src="{% static 'img/logo_jaksa.png' %}" alt="JAKSA"></div>
+        <div class="logo"><img src="{% static 'img/logo_necomplus.jpg' %}" alt="NECOMPLUS"></div>
         <div class="welcome">Bienvenido</div>
         <form method="POST" autocomplete="off">
             {% csrf_token %}
