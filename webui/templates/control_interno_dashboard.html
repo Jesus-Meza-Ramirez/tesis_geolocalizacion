@@ -161,77 +161,66 @@
         <table>
           <thead>
             <tr>
-              <th>Fecha de incidencia</th>
-              <th>Nombre</th>
-              <th>Usuario</th>
-              <th>Cargo</th>
-              <th>Terminal</th>
-              <th>Control interno</th>
+              <th>Fecha Asignación</th>
+              <th>Hora Asignación</th>
+              <th>Código Cliente</th>
+              <th>Cliente</th>
+              <th>Celular</th>
+              <th>Dirección</th>
+              <th>Distrito</th>
+              <th>Técnico</th>
               <th>Estado</th>
-              <th>Motivo</th>
-              <th>Fecha de revisión</th>
-              <th>Evidencia</th>
-              <th>Respuesta</th>
+              <th>Indicaciones</th>
+              <th>Fecha Atención</th>
+              <th>Hora Atención</th>
+              <th>Observación Técnico</th>
             </tr>
           </thead>
 
           <tbody>
             {% for r in rows %}
             <tr>
-              <td>{{ r.fecha|date:"d-m-y" }}</td>
-              <td>{{ r.nombre }}</td>
-              <td>{{ r.usuario }}</td>
-              <td>{{ r.cargo }}</td>
-              <td>{{ r.terminal }}</td>
-              <td>{{ r.control_interno }}</td>
+              <td>{{ r.fecha_asignacion|date:"d-m-Y" }}</td>
+              <td>{{ r.fecha_asignacion|date:"H:i" }}</td>
+              <td>{{ r.codigo_cliente }}</td>
+              <td>{{ r.cliente }}</td>
+              <td>{{ r.celular }}</td>
+              <td>{{ r.direccion }}</td>
+              <td>{{ r.distrito }}</td>
+              <td>{{ r.tecnico|default:"Sin asignar" }}</td>
 
               <td>
-                {% if r.estado == "Conforme" %}
-                  <span class="badge ok">Conforme</span>
-                {% elif r.estado == "Observado" %}
-                  <span class="badge warn">Observado</span>
-                {% elif r.estado == "Pendiente" %}
-                  <span class="badge pending">Pendiente</span>
-                {% elif r.estado == "Resuelto" %}
-                  <span class="badge done">Resuelto</span>
+                {% if r.estado == "por_atender" %}
+                  <span class="badge warn">Por atender</span>
+                {% elif r.estado == "atendido" %}
+                  <span class="badge done">Atendido</span>
                 {% else %}
-                  <span class="badge warn">{{ r.estado }}</span>
+                  <span class="badge pending">{{ r.estado }}</span>
                 {% endif %}
               </td>
 
-              <td class="tooltip-container">
-                <span class="motivo-preview">{{ r.motivo|truncatechars:30 }}</span>
-                <div class="tooltip-box">{{ r.motivo }}</div>
-              </td>
-
-              <td>{{ r.fecha_revision|date:"d-m-Y" }}</td>
-
+              <td>{{ r.indicaciones|default:"—" }}</td>
               <td>
-                {% if r.evidencia %}
-                  <a href="{{ r.evidencia }}" target="_blank" rel="noopener">Ver</a>
+                {% if r.fecha_atencion %}
+                  {{ r.fecha_atencion|date:"d-m-Y" }}
                 {% else %}
                   —
                 {% endif %}
               </td>
 
               <td>
-                {% if r.estado == "Pendiente" and r.solucion_admin %}
-                  <button class="btn-respuesta"
-                          data-respuesta="{{ r.solucion_admin}}"
-                          data-evidencia="{{ r.evidencia_solucion }}"
-                          data-id="{{ r.id_incidencia }}"
-                          data-fecha-respuesta="{{ r.fecha_solucion|date:'d-m-Y' }}">
-                    Ver respuesta
-                  </button>
+                {% if r.fecha_atencion %}
+                  {{ r.fecha_atencion|date:"H:i" }}
                 {% else %}
                   —
                 {% endif %}
               </td>
+              <td>{{ r.observacion_tecnico|default:"—" }}</td>
             </tr>
             {% empty %}
             <tr>
-              <td colspan="11" style="text-align:center; color:#6b7280;">
-                No hay incidencias
+              <td colspan="9" style="text-align:center; color:#6b7280;">
+                No hay órdenes registradas
               </td>
             </tr>
             {% endfor %}
@@ -490,7 +479,7 @@
         position: relative;
         font-size: 14px;
     ">
-      <h2 style="margin-top:0; color:#e68613; font-size:22px;">Ingresar Pedido</h2>
+      <h2 style="margin-top:0; color:#e68613; font-size:22px;">Registrar orden de Atenciòn</h2>
 
       <span id="cerrarModal"
             style="
@@ -502,101 +491,42 @@
               font-size:18px;
             ">✖</span>
 
-      <form method="post" action="{% url 'registrar_incidencia' %}" enctype="multipart/form-data">
+      <form method="post" action="{% url 'registrar_orden_atencion' %}">
         {% csrf_token %}
 
-        <label for="terminalSelect">Terminal:</label>
-        <select id="terminalSelect" name="id_terminal" required style="width:100%; margin-bottom:10px;">
-          <option value="">-- Seleccione terminal --</option>
-          {% for t in terminales %}
-            <option value="{{ t.id_terminal }}">{{ t.nombre_terminal }}</option>
-          {% endfor %}
-        </select>
+        <label for="codigoCliente">Código del cliente:</label>
+        <input type="text" id="codigoCliente" name="codigo_cliente"
+              placeholder="Ejemplo: CL001" required
+              style="width:100%; margin-bottom:10px;">
 
-        <label for="boleteroInput" >Boletero / Cajero (usuario):</label>
-        <input
-          id="boleteroInput"
-          list="boleterosList"
-          placeholder="Escribe para buscar..."
-          autocomplete="off"
-          style="width:100%; margin-bottom:10px;"
-          required
-        />
+        <label for="nombreCliente">Nombre del cliente:</label>
+        <input type="text" id="nombreCliente" name="nombre_cliente"
+              placeholder="Nombre del cliente" required
+              style="width:100%; margin-bottom:10px;">
 
-        <datalist id="boleterosList">
-          {% for b in boleteros %}
-            <option
-              value="{{ b.usuario }}"
-              data-id="{{ b.id_bc }}"
-              data-terminal="{{ b.id_terminal_id }}"
-            ></option>
-          {% endfor %}
-        </datalist>
+        <label for="celularCliente">Celular:</label>
+        <input type="text" id="celularCliente" name="celular"
+              placeholder="Número de celular"
+              style="width:100%; margin-bottom:10px;">
 
-        <!-- este es el que realmente se envía al backend -->
-        <input type="hidden" id="boleteroId" name="id_bc" required>
+        <label for="direccionCliente">Dirección:</label>
+        <input type="text" id="direccionCliente" name="direccion"
+              placeholder="Dirección del cliente" required
+              style="width:100%; margin-bottom:10px;">
 
+        <label for="distritoCliente">Distrito:</label>
+        <input type="text" id="distritoCliente" name="distrito"
+              placeholder="Distrito"
+              style="width:100%; margin-bottom:10px;">
 
-        <label for="fechaIncidencia">Fecha de incidencia:</label>
-        <input type="date" id="fechaIncidencia" name="fecha_incidencia" required style="width:100%; margin-bottom:10px;">
-
-        <label for="estadoIncidencia">Estado:</label>
-        <select id="estadoIncidencia" name="estado" required style="width:100%; margin-bottom:10px;">
-          <option value="conforme" selected>Conforme</option>
-          <option value="observado">Observación</option>
-        </select>
-
-        <label for="motivoIncidencia">Motivo:</label>
-        <textarea id="motivoIncidencia" name="motivo" disabled
-          style="width:100%; height:100px; margin-bottom:10px; background:#e5e7eb; cursor:not-allowed;"></textarea>
-
-        <label for="evidenciaIncidencia">Evidencia (imagen / archivo):</label>
-        <input id="evidenciaIncidencia" type="file" name="evidencia" disabled
-          style="width:100%; margin-bottom:15px; background:#e5e7eb; cursor:not-allowed;">
+        <label for="indicacionesOrden">Indicaciones:</label>
+        <textarea id="indicacionesOrden" name="indicaciones"
+                  placeholder="Ingrese indicaciones para el técnico"
+                  style="width:100%; height:90px; margin-bottom:10px;"></textarea>
 
         <button type="submit"
           style="margin-top:5px; width:100%; padding:10px; background:#e68613; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
-          Guardar incidencia
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL VER RESPUESTA -->
-  <div id="modalRespuesta" style="
-      display:none; 
-      position:fixed; 
-      inset:0; 
-      background:rgba(0,0,0,0.7); 
-      z-index:11000; 
-      justify-content:center; 
-      align-items:center;">
-    <div style="background:white; padding:20px; border-radius:10px; width:480px; position:relative;">
-      <button id="cerrarModalRespuesta"
-        style="position:absolute; top:10px; right:10px; background:#eee; border:none; border-radius:4px;">✕</button>
-
-      <h3 style="margin-bottom:8px;">Respuesta del administrador</h3>
-      <p id="textoRespuesta" style="white-space:pre-wrap;"></p>
-
-      <h4>Evidencia enviada:</h4>
-      <div id="zonaEvidenciaRespuesta">—</div>
-
-      <p><strong>Fecha de respuesta:</strong> <span id="fechaRespuesta">—</span></p>
-
-      <h4 style="margin-top:20px;">Actualizar estado:</h4>
-      <form method="post" action="{% url 'actualizar_estado_control_interno' %}">
-        {% csrf_token %}
-        <input type="hidden" name="id_incidencia" id="idIncidenciaEstado">
-
-        <select name="nuevo_estado" required>
-          <option value="">Seleccione...</option>
-          <option value="resuelto">Resuelto</option>
-          <option value="observado">Observado</option>
-        </select>
-
-        <button type="submit"
-          style="margin-left:10px; background:#0d9488; color:white; padding:6px 10px; border:none; border-radius:6px;">
-          Guardar
+          Guardar orden de atención
         </button>
       </form>
     </div>

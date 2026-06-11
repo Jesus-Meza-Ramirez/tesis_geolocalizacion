@@ -3,71 +3,73 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
-  <title>Panel | administrador del sistema</title>
+  <title>Panel | Administrador del sistema</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
-    {% load static %}
+  {% load static %}
   <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
-</head>  
-
+</head>
 
 <body>
 <div class="layout">
-  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="brand">NECOMPLUS</div>
     <ul class="menu">
       <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
-      <li><a href="{% url 'panel_boleteros' %}">Boleteros/Cajeros</a></li>
-      <li><a href="{% url 'panel_incidencias' %}">Incidencias</a></li>
+      <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
       <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
     </ul>
   </aside>
 
-  <!-- Main -->
   <section class="main">
-    <div class="title-strip">Sistema de control de incidencias</div>
-        <button class="hamburger" id="btnMenu">
-            ☰
-        </button>
+    <div class="title-strip">Sistema de Gestión de Técnicos con Geolocalización</div>
+
+    <button class="hamburger" id="btnMenu">☰</button>
+
     <p class="hello">Administrador del sistema — Bienvenido {{ usuario_nombre }}</p>
 
-    <!-- Botones superiores (solo usamos Agregar, los otros quedan por ahora) -->
+    {% if error %}
+      <div style="background:#fee2e2; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:16px;">
+        {{ error }}
+      </div>
+    {% endif %}
+
     <div class="actions-bar">
       <button id="btnOpenUserModal" class="btn btn-add" type="button">Agregar nuevo usuario</button>
-
     </div>
 
-    <!-- Tabla -->
     <div class="table-card">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th style="width:160px">Fecha Ingreso</th>
-              <th>Nombre y Apellido</th>
-              <th style="width:160px">Usuario</th>
-              <th style="width:160px">Rol</th>
-              <th style="width:160px">Terminal</th>
-              <th style="width:120px; text-align:center;">Activo</th>
-              <th style="width:120px; text-align:center;">Acciones</th>
+              <th>Fecha Ingreso</th>
+              <th>Nombre</th>
+              <th>Usuario</th>
+              <th>Celular</th>
+              <th>Rol</th>
+              <th style="text-align:center;">Estado</th>
+              <th style="text-align:center;">Acciones</th>
             </tr>
           </thead>
+
           <tbody>
             {% for u in usuarios %}
               <tr>
                 <td>{{ u.fecha_ingreso|date:"d-m-y" }}</td>
                 <td>{{ u.nombre }}</td>
                 <td>{{ u.usuario_login }}</td>
-                <td>{{ u.rol }}</td>
-                <td>{{ u.terminal }}</td>
+                <td>{{ u.celular|default:"—" }}</td>
+                <td>{{ u.rol_mostrar|default:u.rol }}</td>
+
                 <td style="text-align:center;">
                   {% if u.activo %}
-                    <span class="tag-on">Sí</span>
+                    <span class="tag-on">Activo</span>
                   {% else %}
-                    <span class="tag-off">No</span>
+                    <span class="tag-off">Inactivo</span>
                   {% endif %}
                 </td>
+
                 <td style="text-align:center;">
                   <button
                     type="button"
@@ -76,6 +78,7 @@
                     data-nombre="{{ u.nombre|escapejs }}"
                     data-usuario="{{ u.usuario_login|escapejs }}"
                     data-pass="{{ u.contrasena|escapejs }}"
+                    data-celular="{{ u.celular|default:''|escapejs }}"
                     data-rol="{{ u.rol }}"
                     data-terminal="{{ u.terminal_id }}"
                     data-activo="{{ u.activo_raw }}"
@@ -88,7 +91,7 @@
             {% empty %}
               <tr>
                 <td colspan="7" style="text-align:center; color:#6b7280;">
-                  No hay usuarios
+                  No hay usuarios registrados
                 </td>
               </tr>
             {% endfor %}
@@ -103,7 +106,9 @@
           <a href="?page=1">&laquo; Primero</a>
           <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
         {% endif %}
+
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+
         {% if page_obj.has_next %}
           <a href="?page={{ page_obj.next_page_number }}">Siguiente</a>
           <a href="?page={{ page_obj.paginator.num_pages }}">Último &raquo;</a>
@@ -111,7 +116,6 @@
       </div>
     {% endif %}
 
-    <!-- Modal: Crear / Editar usuario -->
     <div id="userModal" class="modal-backdrop">
       <div class="modal-box">
         <div class="modal-header">
@@ -130,27 +134,32 @@
           </div>
 
           <div class="modal-row">
-            <label>Inicio de sesión de usuario</label>
+            <label>Usuario</label>
             <input type="text" name="usuario_login" id="usuarioField" required autocomplete="off">
           </div>
 
           <div class="modal-row">
             <label>Contraseña</label>
-            <input type="password" name="contrasena" id="passField" required autocomplete="new-password">
+            <input type="password" name="contrasena" id="passField" autocomplete="new-password">
+          </div>
+
+          <div class="modal-row">
+            <label>Celular</label>
+            <input type="text" name="celular" id="celularField" autocomplete="off">
           </div>
 
           <div class="modal-row">
             <label>Rol</label>
             <select name="rol" id="rolField" required>
               <option value="">Seleccione…</option>
-              <option value="admin_terminal">Administrador de Terminal</option>
               <option value="admin_sistema">Administrador del Sistema</option>
-              <option value="control_interno">Control Interno</option>
+              <option value="coordinador">Coordinador</option>
+              <option value="tecnico">Técnico</option>
             </select>
           </div>
 
-          <div class="modal-row">
-            <label>Terminal (solo si aplica)</label>
+          <div class="modal-row" style="display:none;">
+            <label>Terminal</label>
             <select name="id_terminal" id="terminalField">
               <option value="">— Sin terminal —</option>
               {% for t in terminales %}
@@ -189,118 +198,118 @@
         </form>
       </div>
     </div>
-
   </section>
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function(){
-    const modal       = document.getElementById('userModal');
-    const openBtn     = document.getElementById('btnOpenUserModal');
-    const closeBtn    = document.getElementById('closeUserModal');
-    const cancelBtn   = document.getElementById('cancelUserModal');
-    const form        = document.getElementById('userForm');
+document.addEventListener('DOMContentLoaded', function(){
+  const modal = document.getElementById('userModal');
+  const openBtn = document.getElementById('btnOpenUserModal');
+  const closeBtn = document.getElementById('closeUserModal');
+  const cancelBtn = document.getElementById('cancelUserModal');
+  const form = document.getElementById('userForm');
 
-    const titleEl     = document.getElementById('userModalTitle');
-    const idField     = document.getElementById('userIdField');
-    const accionField = document.getElementById('accionField');
-    const nombreField = document.getElementById('nombreField');
-    const usuarioField= document.getElementById('usuarioField');
-    const passField   = document.getElementById('passField');
-    const rolField    = document.getElementById('rolField');
-    const terminalField = document.getElementById('terminalField');
-    const activoField = document.getElementById('activoField');
-    const fechaField  = document.getElementById('fechaIngresoField');
-    const deleteBtn   = document.getElementById('deleteUserBtn');
+  const titleEl = document.getElementById('userModalTitle');
+  const idField = document.getElementById('userIdField');
+  const accionField = document.getElementById('accionField');
+  const nombreField = document.getElementById('nombreField');
+  const usuarioField = document.getElementById('usuarioField');
+  const passField = document.getElementById('passField');
+  const celularField = document.getElementById('celularField');
+  const rolField = document.getElementById('rolField');
+  const terminalField = document.getElementById('terminalField');
+  const activoField = document.getElementById('activoField');
+  const fechaField = document.getElementById('fechaIngresoField');
+  const deleteBtn = document.getElementById('deleteUserBtn');
 
-    function openCreateModal(){
-      if (!modal) return;
-      form.reset();
+  function openCreateModal(){
+    form.reset();
 
-      accionField.value = 'create';
-      idField.value = '';
-      titleEl.textContent = 'Registrar nuevo usuario';
+    accionField.value = 'create';
+    idField.value = '';
+    titleEl.textContent = 'Registrar nuevo usuario';
 
-      if (activoField) activoField.checked = true;
-      if (fechaField) {
-        const hoy = fechaField.getAttribute('data-today');
-        fechaField.value = hoy;
-      }
+    passField.required = true;
 
-      if (deleteBtn) deleteBtn.style.display = 'none';
+    if (activoField) activoField.checked = true;
+    if (fechaField) fechaField.value = fechaField.getAttribute('data-today');
 
-      modal.style.display = 'flex';
-    }
+    if (deleteBtn) deleteBtn.style.display = 'none';
 
-    function openEditModal(btn){
-      if (!modal) return;
+    modal.style.display = 'flex';
+  }
 
-      accionField.value = 'update';
-      idField.value = btn.dataset.id || '';
-      titleEl.textContent = 'Editar usuario';
+  function openEditModal(btn){
+    accionField.value = 'update';
+    idField.value = btn.dataset.id || '';
+    titleEl.textContent = 'Editar usuario';
 
-      nombreField.value  = btn.dataset.nombre || '';
-      usuarioField.value = btn.dataset.usuario || '';
-      passField.value    = btn.dataset.pass || '';
-      rolField.value     = btn.dataset.rol || '';
-      terminalField.value= btn.dataset.terminal || '';
-      activoField.checked = (btn.dataset.activo === '1');
-      if (fechaField) fechaField.value = btn.dataset.fecha || '';
+    nombreField.value = btn.dataset.nombre || '';
+    usuarioField.value = btn.dataset.usuario || '';
+    passField.value = btn.dataset.pass || '';
+    celularField.value = btn.dataset.celular || '';
+    rolField.value = btn.dataset.rol || '';
+    terminalField.value = btn.dataset.terminal || '';
+    activoField.checked = (btn.dataset.activo === '1');
 
-      if (deleteBtn) deleteBtn.style.display = 'inline-block';
+    if (fechaField) fechaField.value = btn.dataset.fecha || '';
 
-      modal.style.display = 'flex';
-    }
+    passField.required = false;
 
-    function closeModal(){
-      if (modal) modal.style.display = 'none';
-    }
+    if (deleteBtn) deleteBtn.style.display = 'inline-block';
 
-    if (openBtn)  openBtn.addEventListener('click', openCreateModal);
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    modal.style.display = 'flex';
+  }
 
-    if (modal) {
-      modal.addEventListener('click', function(e){
-        if (e.target === modal) closeModal();
-      });
-    }
+  function closeModal(){
+    modal.style.display = 'none';
+  }
 
-    // Botones "Editar" por fila
-    document.querySelectorAll('.btn-row-edit').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        openEditModal(btn);
-      });
+  if (openBtn) openBtn.addEventListener('click', openCreateModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+  if (modal) {
+    modal.addEventListener('click', function(e){
+      if (e.target === modal) closeModal();
     });
+  }
 
-    // Eliminar usuario desde el modal
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', function(){
-        if (!idField.value) return;
-        if (confirm('¿Seguro que deseas eliminar este usuario?')) {
-          accionField.value = 'delete';
-          form.submit();
-        }
-      });
-    }
+  document.querySelectorAll('.btn-row-edit').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      openEditModal(btn);
+    });
   });
-  
- </script> 
 
-<script>
-  const btnMenu = document.getElementById('btnMenu');
-  const sidebar = document.querySelector('.sidebar');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function(){
+      if (!idField.value) return;
 
-  btnMenu.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-  });
-  document.addEventListener('click', (e) => {
-  if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
-    sidebar.classList.remove('open');
+      if (confirm('¿Seguro que deseas eliminar este usuario?')) {
+        accionField.value = 'delete';
+        form.submit();
+      }
+    });
   }
 });
 </script>
 
-</body>
+<script>
+const btnMenu = document.getElementById('btnMenu');
+const sidebar = document.querySelector('.sidebar');
 
+if (btnMenu && sidebar) {
+  btnMenu.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+</script>
+
+</body>
 </html>

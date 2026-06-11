@@ -105,4 +105,73 @@ class Incidencia(models.Model):
         db_table = 'incidencias'
         managed = False
         
+        
+        
+        
     
+class Cliente(models.Model):
+    id_cliente = models.AutoField(primary_key=True)
+    codigo_cliente = models.CharField(max_length=50, unique=True)
+    nombre_cliente = models.CharField(max_length=150)
+    celular = models.CharField(max_length=20, blank=True, null=True)
+    direccion = models.CharField(max_length=255)
+    distrito = models.CharField(max_length=100, blank=True, null=True)
+    latitud = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    longitud = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    observacion = models.TextField(blank=True, null=True)
+    fecha_registro = models.DateTimeField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = 'clientes'
+
+
+class ZonaTecnico(models.Model):
+    id_zona = models.AutoField(primary_key=True)
+    nombre_zona = models.CharField(max_length=100)
+    id_tecnico = models.ForeignKey('usuarios.Usuario', models.DO_NOTHING, db_column='id_tecnico')
+    poligono = models.JSONField()
+    activo = models.BooleanField(default=True)
+    fecha_registro = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'zonas_tecnicos'
+
+
+class OrdenAtencion(models.Model):
+    ESTADOS = [
+        ('por_atender', 'Por atender'),
+        ('atendido', 'Atendido'),
+    ]
+
+    id_orden = models.AutoField(primary_key=True)
+    id_cliente = models.ForeignKey(Cliente, models.DO_NOTHING, db_column='id_cliente')
+    id_tecnico = models.ForeignKey('usuarios.Usuario', models.DO_NOTHING, db_column='id_tecnico', blank=True, null=True)
+    id_zona = models.ForeignKey(ZonaTecnico, models.DO_NOTHING, db_column='id_zona', blank=True, null=True)
+    fecha_asignacion = models.DateTimeField(blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='por_atender')
+    indicaciones = models.TextField(blank=True, null=True)
+    observacion_tecnico = models.TextField(blank=True, null=True)
+    fecha_atencion = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'ordenes_atencion'
+        
+        
+
+        
+class Tecnico(models.Model):
+    id_tecnico = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey('usuarios.Usuario', models.DO_NOTHING, db_column='id_usuario')
+    celular = models.CharField(max_length=20, blank=True, null=True)
+    latitud_actual = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    longitud_actual = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    ultima_actualizacion_ubicacion = models.DateTimeField(blank=True, null=True)
+    fecha_creacion = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'tecnicos'

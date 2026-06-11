@@ -6,7 +6,7 @@ from datetime import date
 
 from usuarios.models import Usuario
 from incidencias.models import BoleteroCajero
-from .models import Incidencia
+from .models import Incidencia, Cliente, OrdenAtencion
 import pytz
 
 peru_tz = pytz.timezone("America/Lima")
@@ -59,4 +59,50 @@ def registrar_incidencia(request):
 
 
 
+
+
+def registrar_orden_atencion(request):
+    """
+    Registra una orden de atención.
+    Si el cliente no existe, lo crea.
+    Si ya existe, reutiliza sus datos.
+    """
+    if request.method == "POST":
+        codigo_cliente = request.POST.get("codigo_cliente", "").strip()
+        nombre_cliente = request.POST.get("nombre_cliente", "").strip()
+        celular = request.POST.get("celular", "").strip()
+        direccion = request.POST.get("direccion", "").strip()
+        distrito = request.POST.get("distrito", "").strip()
+        indicaciones = request.POST.get("indicaciones", "").strip()
+
+        uid = request.session.get("uid")
+        coordinador = Usuario.objects.filter(pk=uid).first()
+
+        cliente, creado = Cliente.objects.get_or_create(
+            codigo_cliente=codigo_cliente,
+            defaults={
+                "nombre_cliente": nombre_cliente,
+                "celular": celular,
+                "direccion": direccion,
+                "distrito": distrito,
+                "fecha_registro": timezone.now(),
+                "activo": True,
+            }
+        )
+
+        if not creado:
+            cliente.nombre_cliente = nombre_cliente or cliente.nombre_cliente
+            cliente.celular = celular or cliente.celular
+            cliente.direccion = direccion or cliente.direccion
+            cliente.distrito = distrito or cliente.distrito
+            cliente.save()
+
+        OrdenAtencion.objects.create(
+            id_cliente=cliente,
+            estado="por_atender",
+            indicaciones=indicaciones,
+            fecha_asignacion=timezone.now()
+        )
+
+        return redirect("panel_control_interno")
 
