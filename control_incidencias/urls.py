@@ -38,7 +38,30 @@ urlpatterns = [
     
     path("panel/boleteros/", views.panel_boleteros, name="panel_boleteros"),
     
+    path(
+    'panel/tecnicos/<int:id_tecnico>/zona/',
+    views.asignar_zona_tecnico,
+    name='asignar_zona_tecnico'
+    ),
     
+    path(
+    'panel/tecnicos/<int:id_tecnico>/zona/guardar/',
+    views.guardar_zona_tecnico,
+    name='guardar_zona_tecnico'
+    ),
+    
+    path(
+    'panel/tecnicos/<int:id_tecnico>/zona/ver/',
+    views.ver_zona_tecnico,
+    name='ver_zona_tecnico'
+    ),
+    path("buscar-cliente/", views.buscar_cliente, name="buscar_cliente"),
+    
+    path(
+    "panel/tecnico/",
+    views.panel_tecnico,
+    name="panel_tecnico"
+    ),
 ]
 
 if settings.DEBUG:

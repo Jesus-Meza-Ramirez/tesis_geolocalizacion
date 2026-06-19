@@ -1,28 +1,32 @@
-# webui/views.py
-from django.shortcuts import render, redirect
-from django.shortcuts import get_object_or_404, redirect
-from django.views.decorators.http import require_POST
-from django.contrib import messages
-from django.views.decorators.http import require_http_methods
-from usuarios.models import Usuario
-from incidencias.models import Incidencia, OrdenAtencion, Tecnico  # <- tu modelo de incidencias (ajusta import si cambia)
-from django.db.models import Q, Count, Case, When, IntegerField
+import io
+import json
 
 from datetime import date
-from django.core.paginator import Paginator, EmptyPage
 
-from incidencias.models import Terminal
-
-
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST, require_http_methods
+from django.contrib import messages
 from django.utils import timezone
 from django.urls import reverse
+from django.core.paginator import Paginator, EmptyPage
+from django.db.models import Q, Count, Case, When, IntegerField
+from django.http import JsonResponse
 
-from incidencias.models import BoleteroCajero, Terminal
-
-import io
-from django.http import HttpResponse
 from openpyxl import Workbook
-from django.db.models import Q
+
+from usuarios.models import Usuario
+
+from incidencias.models import (
+    Incidencia,
+    OrdenAtencion,
+    Tecnico,
+    Zona,
+    CoordenadaZona,
+    BoleteroCajero,
+    Terminal,
+    Cliente
+)
 
 
 def _require_session(request):
@@ -69,23 +73,23 @@ def logout_view(request):
 
 
 def dashboard_redirect(request):
-    # Si no hay sesión → login
     if not request.session.get('uid'):
         return redirect('login')
 
     rol = (request.session.get('rol') or '').lower()
 
-    # 👉 ahora sí, si es control interno lo mandamos a TU panel
     if rol == 'control_interno':
         return redirect('panel_control_interno')
 
-    # Ajusta estos destinos cuando implementes los otros paneles:
-    if rol in ('admin_terminal', 'terminal'):
-        return redirect('panel_admin_terminal')   # de momento lo mandamos a un placeholder
-    if rol in ('admin_sistema', 'admin'):
-        return redirect('panel_admin_sistema')    # placeholder
+    elif rol == 'tecnico':
+        return redirect('panel_tecnico')
 
-    # por defecto
+    elif rol in ('admin_terminal', 'terminal'):
+        return redirect('panel_admin_terminal')
+
+    elif rol in ('admin_sistema', 'admin'):
+        return redirect('panel_admin_sistema')
+
     return redirect('panel_control_interno')
 
 
@@ -141,7 +145,7 @@ def panel_control_interno(request):
             "celular": cliente.celular if cliente else "—",
             "direccion": cliente.direccion if cliente else "—",
             "distrito": cliente.distrito if cliente else "—",
-            "tecnico": tecnico.nombre if tecnico else "Sin asignar",
+            "tecnico": tecnico.id_usuario.nombre if tecnico and tecnico.id_usuario else "Sin asignar",
             "estado": orden.estado,
             "indicaciones": orden.indicaciones or "—",
             "observacion_tecnico": orden.observacion_tecnico or "—",
@@ -975,113 +979,233 @@ def panel_incidencias(request):
 
 
 def panel_boleteros(request):
-    # 1) Validar sesión
     if not request.session.get('uid'):
         return redirect('login')
 
-    # 2) Procesar POST (crear / editar / eliminar)
-    if request.method == 'POST':
-        accion = request.POST.get('accion')
-
-        # -------- CREAR --------
-        if accion == 'crear':
-            nombre = (request.POST.get('nombre') or '').strip()
-            usuario = (request.POST.get('usuario') or '').strip()
-            cargo = (request.POST.get('cargo') or '').strip()
-            estado = (request.POST.get('estado') or '').strip()
-            terminal_id = request.POST.get('id_terminal') or None
-
-            if nombre and usuario and cargo and estado:
-                bc = BoleteroCajero(
-                    nombre=nombre,
-                    usuario=usuario,
-                    cargo=cargo,
-                    estado=estado,
-                    fecha_creacion=timezone.localtime() 
-                )
-                if terminal_id:
-                    bc.id_terminal_id = terminal_id
-                bc.save()
-
-            return redirect('panel_boleteros')
-
-        # -------- EDITAR --------
-        if accion == 'editar':
-            id_bc = request.POST.get('id_bc')
-            bc = get_object_or_404(BoleteroCajero, pk=id_bc)
-
-            bc.nombre = (request.POST.get('nombre') or '').strip()
-            bc.usuario = (request.POST.get('usuario') or '').strip()
-            bc.cargo = (request.POST.get('cargo') or '').strip()
-            bc.estado = (request.POST.get('estado') or '').strip()
-
-            terminal_id = request.POST.get('id_terminal') or None
-            if terminal_id:
-                bc.id_terminal_id = terminal_id
-            else:
-                bc.id_terminal = None
-
-            bc.save()
-            return redirect('panel_boleteros')
-
-        # -------- ELIMINAR --------
-        if accion == 'eliminar':
-            id_bc = request.POST.get('id_bc')
-            bc = get_object_or_404(BoleteroCajero, pk=id_bc)
-            bc.delete()
-            return redirect('panel_boleteros')
-
-    # 3) GET normal: listar boleteros/cajeros
     qs = (
-        BoleteroCajero.objects
-        .select_related('id_terminal')
-        .order_by('nombre')
+        Tecnico.objects
+        .select_related('id_usuario')
+        .order_by('id_usuario__nombre')
     )
 
-    # Búsqueda rápida opcional ?q=
-    q = (request.GET.get('q') or '').strip()
-    if q:
-        qs = qs.filter(
-            Q(nombre__icontains=q) |
-            Q(usuario__icontains=q) |
-            Q(cargo__icontains=q) |
-            Q(estado__icontains=q) |
-            Q(id_terminal__nombre_terminal__icontains=q)
-        )
-
-    # Paginación
     paginator = Paginator(qs, 15)
-    try:
-        page_num = int(request.GET.get('page', 1))
-    except ValueError:
-        page_num = 1
+    page_num = request.GET.get('page', 1)
+
     try:
         page_obj = paginator.page(page_num)
-    except EmptyPage:
+    except:
         page_obj = paginator.page(1)
 
-    filas = []
-    for b in page_obj.object_list:
-        term_obj = getattr(b, 'id_terminal', None)
-        term_name = getattr(term_obj, 'nombre_terminal', None) if term_obj else None
-        if not term_name:
-            term_name = term_obj or '—'
+    tecnicos_rows = []
 
-        filas.append({
-            'id_bc': b.id_bc,
-            'nombre': b.nombre,
-            'usuario': b.usuario,
-            'cargo': b.cargo,
-            'estado': b.estado,
-            'terminal': term_name,
-            'fecha_creacion': b.fecha_creacion,
+    for t in page_obj.object_list:
+        usuario = t.id_usuario
+        zona = Zona.objects.filter(id_tecnico=t).first()
+
+        tecnicos_rows.append({
+            'id_tecnico': t.id_tecnico,
+            'fecha_creacion': t.fecha_creacion,
+            'nombre': usuario.nombre if usuario else '—',
+            'usuario_login': usuario.usuario_login if usuario else '—',
+            'celular': t.celular or '—',
+            'estado': 'Activo' if usuario and usuario.activo else 'Inactivo',
+            'latitud': t.latitud_actual or '—',
+            'longitud': t.longitud_actual or '—',
+            'tiene_zona': True if zona else False,
+            'nombre_zona': zona.nombre_zona if zona else 'Sin zona',
         })
 
     context = {
         'usuario_nombre': request.session.get('nombre', 'Usuario'),
-        'boleteros_rows': filas,
+        'tecnicos_rows': tecnicos_rows,
         'page_obj': page_obj,
-        'terminales': Terminal.objects.all().order_by('nombre_terminal'),
-        'hoy': timezone.now().date(),
     }
+
     return render(request, 'admin_boleteros_dashboard.html', context)
+
+
+
+def asignar_zona_tecnico(request, id_tecnico):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    tecnico = get_object_or_404(Tecnico, pk=id_tecnico)
+
+    zona = Zona.objects.filter(id_tecnico=tecnico).first()
+
+    coordenadas_zona = []
+
+    if zona:
+        puntos = CoordenadaZona.objects.filter(
+            id_zona=zona
+        ).order_by('orden_punto')
+
+        coordenadas_zona = [
+            [float(p.latitud), float(p.longitud)]
+            for p in puntos
+        ]
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'tecnico': tecnico,
+        'zona': zona,
+        'coordenadas_zona': coordenadas_zona,
+    }
+
+    return render(
+        request,
+        'asignar_zona_tecnico.html',
+        context
+    )
+
+
+
+
+
+@require_POST
+def guardar_zona_tecnico(request, id_tecnico):
+    if not request.session.get('uid'):
+        return JsonResponse({'ok': False, 'error': 'Sesión no válida'}, status=403)
+
+    tecnico = get_object_or_404(Tecnico, pk=id_tecnico)
+
+    try:
+        data = json.loads(request.body)
+        nombre_zona = (data.get('nombre_zona') or '').strip()
+        coordenadas = data.get('coordenadas') or []
+
+        if not nombre_zona:
+            return JsonResponse({'ok': False, 'error': 'Ingrese el nombre de la zona'})
+
+        if len(coordenadas) < 3:
+            return JsonResponse({'ok': False, 'error': 'Debe dibujar al menos 3 puntos'})
+
+        zona = Zona.objects.filter(id_tecnico=tecnico).first()
+
+        if zona:
+            zona.nombre_zona = nombre_zona
+            zona.fecha_creacion = timezone.now()
+            zona.save()
+
+            CoordenadaZona.objects.filter(id_zona=zona).delete()
+        else:
+            zona = Zona.objects.create(
+                nombre_zona=nombre_zona,
+                id_tecnico=tecnico,
+                fecha_creacion=timezone.now()
+            )
+
+        for punto in coordenadas:
+            CoordenadaZona.objects.create(
+                id_zona=zona,
+                latitud=punto.get('latitud'),
+                longitud=punto.get('longitud'),
+                orden_punto=punto.get('orden')
+            )
+
+        return JsonResponse({'ok': True})
+
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    
+    
+    
+    
+
+
+def ver_zona_tecnico(request, id_tecnico):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    tecnico = get_object_or_404(Tecnico, pk=id_tecnico)
+
+    zona = Zona.objects.filter(id_tecnico=tecnico).first()
+    coordenadas_zona = []
+
+    if zona:
+        puntos = CoordenadaZona.objects.filter(id_zona=zona).order_by('orden_punto')
+        coordenadas_zona = [
+            [float(p.latitud), float(p.longitud)]
+            for p in puntos
+        ]
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'tecnico': tecnico,
+        'zona': zona,
+        'coordenadas_zona': coordenadas_zona,
+    }
+
+    return render(request, 'ver_zona_tecnico.html', context)
+
+
+
+def buscar_cliente(request):
+    codigo = request.GET.get("codigo_cliente", "").strip()
+
+    cliente = Cliente.objects.filter(codigo_cliente=codigo).first()
+
+    if not cliente:
+        return JsonResponse({"existe": False})
+
+    return JsonResponse({
+        "existe": True,
+        "nombre_cliente": cliente.nombre_cliente or "",
+        "celular": cliente.celular or "",
+        "direccion": cliente.direccion or "",
+        "distrito": cliente.distrito or "",
+        "departamento": cliente.departamento or "",
+        "latitud": str(cliente.latitud) if cliente.latitud else "",
+        "longitud": str(cliente.longitud) if cliente.longitud else "",
+    })
+    
+    
+    
+def panel_tecnico(request):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    uid = request.session.get('uid')
+
+    usuario = Usuario.objects.filter(pk=uid).first()
+    tecnico = Tecnico.objects.filter(id_usuario=usuario).first()
+
+    if not tecnico:
+        return redirect('login')
+
+    qs = (
+        OrdenAtencion.objects
+        .select_related("id_cliente", "id_tecnico", "id_tecnico__id_usuario")
+        .filter(id_tecnico=tecnico)
+        .order_by("-fecha_asignacion", "-id_orden")
+    )
+
+    rows = []
+
+    for orden in qs:
+        cliente = orden.id_cliente
+
+        rows.append({
+            "id_orden": orden.id_orden,
+            "fecha_asignacion": orden.fecha_asignacion,
+            "codigo_cliente": cliente.codigo_cliente,
+            "cliente": cliente.nombre_cliente,
+            "celular": cliente.celular,
+            "direccion": cliente.direccion,
+            "distrito": cliente.distrito,
+            "departamento": cliente.departamento,
+            "latitud": cliente.latitud,
+            "longitud": cliente.longitud,
+            "tecnico": tecnico.id_usuario.nombre,
+            "estado": orden.estado,
+            "indicaciones": orden.indicaciones,
+            "fecha_atencion": orden.fecha_atencion,
+            "observacion_tecnico": orden.observacion_tecnico,
+        })
+
+    context = {
+        "usuario_nombre": usuario.nombre,
+        "rows": rows,
+    }
+
+    return render(request, "tecnico_dashboard.html", context)

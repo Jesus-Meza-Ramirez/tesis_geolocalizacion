@@ -1,0 +1,126 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Ver zona del técnico</title>
+
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+
+  <style>
+    #map {
+      width: 100%;
+      height: 600px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+    }
+
+    .info-card {
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    }
+
+    .info-card h3{
+      margin:0 0 10px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">NECOMPLUS</div>
+
+    <ul class="menu">
+      <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
+      <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
+    </ul>
+  </aside>
+
+  <section class="main">
+
+    <div class="title-strip">
+      Zona asignada al técnico
+    </div>
+
+    <p class="hello">
+      Técnico:
+      <strong>{{ tecnico.id_usuario.nombre }}</strong>
+    </p>
+
+    <div class="info-card">
+
+      <h3>{{ zona.nombre_zona }}</h3>
+
+      <p>
+        Técnico:
+        <strong>{{ tecnico.id_usuario.nombre }}</strong>
+      </p>
+
+      <a href="{% url 'asignar_zona_tecnico' tecnico.id_tecnico %}"
+         class="btn btn-add">
+        Editar zona
+      </a>
+
+      <a href="{% url 'panel_boleteros' %}"
+         class="btn btn-del">
+        Volver
+      </a>
+
+    </div>
+
+    <div id="map"></div>
+
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+const coordenadas = {{ coordenadas_zona|safe }};
+
+const map = L.map('map').setView(
+    [-12.0464, -77.0428],
+    12
+);
+
+L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {
+    attribution: '&copy; OpenStreetMap'
+  }
+).addTo(map);
+
+if (coordenadas.length > 0){
+
+    const polygon = L.polygon(
+        coordenadas,
+        {
+            color: '#2563eb',
+            fillOpacity: 0.25,
+            weight: 3
+        }
+    );
+
+    polygon.addTo(map);
+
+    map.fitBounds(
+        polygon.getBounds()
+    );
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,182 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Panel Técnico</title>
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+</head>
+
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">NECOMPLUS</div>
+    <ul class="menu">
+      <li><a href="{% url 'panel_tecnico' %}">Mis órdenes</a></li>
+      <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
+    </ul>
+  </aside>
+
+  <section class="main">
+    <div class="page-title">Sistema de Gestión de Técnicos con Geolocalización</div>
+
+    <p class="hello">Bienvenido {{ usuario_nombre }}</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha Asignación</th>
+            <th>Hora Asignación</th>
+            <th>Código Cliente</th>
+            <th>Cliente</th>
+            <th>Celular</th>
+            <th>Dirección</th>
+            <th>Distrito</th>
+            <th>Departamento</th>
+            <th>Técnico</th>
+            <th>Estado</th>
+            <th>Indicaciones</th>
+            <th>Fecha Atención</th>
+            <th>Hora Atención</th>
+            <th>Observación</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.fecha_asignacion|date:"d-m-Y" }}</td>
+            <td>{{ r.fecha_asignacion|date:"H:i" }}</td>
+            <td>{{ r.codigo_cliente }}</td>
+            <td>{{ r.cliente }}</td>
+            <td>{{ r.celular }}</td>
+            <td>{{ r.direccion }}</td>
+            <td>{{ r.distrito }}</td>
+            <td>{{ r.departamento }}</td>
+            <td>{{ r.tecnico }}</td>
+
+            <td>
+              {% if r.estado == "por_atender" %}
+                <span class="badge warn">Por atender</span>
+              {% elif r.estado == "atendido" %}
+                <span class="badge done">Atendido</span>
+              {% else %}
+                <span class="badge pending">{{ r.estado }}</span>
+              {% endif %}
+            </td>
+
+            <td>{{ r.indicaciones|default:"—" }}</td>
+
+            <td>
+              {% if r.fecha_atencion %}
+                {{ r.fecha_atencion|date:"d-m-Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td>
+              {% if r.fecha_atencion %}
+                {{ r.fecha_atencion|date:"H:i" }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td>{{ r.observacion_tecnico|default:"—" }}</td>
+
+            <td>
+                {% if r.estado == "por_atender" %}
+
+                    <button class="btn-small">
+                        Atender
+                    </button>
+
+                    <br><br>
+
+                    <button
+                        class="btn-small"
+                        onclick="abrirRuta('{{ r.latitud }}','{{ r.longitud }}')">
+
+                        Ver ubicación
+
+                    </button>
+
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="15" style="text-align:center; color:#6b7280;">
+              No tienes órdenes asignadas.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </section>
+</div>
+
+
+
+
+<script>
+
+function abrirRuta(latCliente, lonCliente) {
+    if (!latCliente || !lonCliente) {
+        alert("El cliente no tiene coordenadas registradas.");
+        return;
+    }
+
+    const destino = latCliente + "," + lonCliente;
+
+    if (!navigator.geolocation) {
+        window.location.href = "https://www.google.com/maps/search/?api=1&query=" + destino;
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const origen = position.coords.latitude + "," + position.coords.longitude;
+
+            const url =
+                "https://www.google.com/maps/dir/?api=1" +
+                "&origin=" + origen +
+                "&destination=" + destino +
+                "&travelmode=driving";
+
+            window.location.href = url;
+        },
+        function() {
+            const url =
+                "https://www.google.com/maps/dir/?api=1" +
+                "&destination=" + destino +
+                "&travelmode=driving";
+
+            window.location.href = url;
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 0
+        }
+    );
+}
+
+</script>
+
+
+
+
+
+
+
+</body>
+</html>

@@ -116,8 +116,11 @@ class Cliente(models.Model):
     celular = models.CharField(max_length=20, blank=True, null=True)
     direccion = models.CharField(max_length=255)
     distrito = models.CharField(max_length=100, blank=True, null=True)
+    departamento = models.CharField(max_length=100, blank=True, null=True)
+
     latitud = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
     longitud = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+
     observacion = models.TextField(blank=True, null=True)
     fecha_registro = models.DateTimeField(blank=True, null=True)
     activo = models.BooleanField(default=True)
@@ -140,25 +143,7 @@ class ZonaTecnico(models.Model):
         db_table = 'zonas_tecnicos'
 
 
-class OrdenAtencion(models.Model):
-    ESTADOS = [
-        ('por_atender', 'Por atender'),
-        ('atendido', 'Atendido'),
-    ]
 
-    id_orden = models.AutoField(primary_key=True)
-    id_cliente = models.ForeignKey(Cliente, models.DO_NOTHING, db_column='id_cliente')
-    id_tecnico = models.ForeignKey('usuarios.Usuario', models.DO_NOTHING, db_column='id_tecnico', blank=True, null=True)
-    id_zona = models.ForeignKey(ZonaTecnico, models.DO_NOTHING, db_column='id_zona', blank=True, null=True)
-    fecha_asignacion = models.DateTimeField(blank=True, null=True)
-    estado = models.CharField(max_length=20, choices=ESTADOS, default='por_atender')
-    indicaciones = models.TextField(blank=True, null=True)
-    observacion_tecnico = models.TextField(blank=True, null=True)
-    fecha_atencion = models.DateTimeField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'ordenes_atencion'
         
         
 
@@ -175,3 +160,68 @@ class Tecnico(models.Model):
     class Meta:
         managed = False
         db_table = 'tecnicos'
+        
+
+
+
+class Zona(models.Model):
+    id_zona = models.AutoField(primary_key=True)
+    nombre_zona = models.CharField(max_length=100)
+    id_tecnico = models.ForeignKey(Tecnico, models.DO_NOTHING, db_column='id_tecnico')
+    fecha_creacion = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'zonas'
+
+
+class CoordenadaZona(models.Model):
+    id_coordenada = models.AutoField(primary_key=True)
+    id_zona = models.ForeignKey(Zona, models.DO_NOTHING, db_column='id_zona')
+    latitud = models.DecimalField(max_digits=10, decimal_places=7)
+    longitud = models.DecimalField(max_digits=10, decimal_places=7)
+    orden_punto = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'coordenadas_zona'
+        
+        
+
+
+
+
+class OrdenAtencion(models.Model):
+    ESTADOS = [
+        ('por_atender', 'Por atender'),
+        ('atendido', 'Atendido'),
+    ]
+
+    id_orden = models.AutoField(primary_key=True)
+    id_cliente = models.ForeignKey(Cliente, models.DO_NOTHING, db_column='id_cliente')
+
+    id_tecnico = models.ForeignKey(
+        Tecnico,
+        models.DO_NOTHING,
+        db_column='id_tecnico',
+        blank=True,
+        null=True
+    )
+
+    id_zona = models.ForeignKey(
+        Zona,
+        models.DO_NOTHING,
+        db_column='id_zona',
+        blank=True,
+        null=True
+    )
+
+    fecha_asignacion = models.DateTimeField(blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='por_atender')
+    indicaciones = models.TextField(blank=True, null=True)
+    observacion_tecnico = models.TextField(blank=True, null=True)
+    fecha_atencion = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'ordenes_atencion'

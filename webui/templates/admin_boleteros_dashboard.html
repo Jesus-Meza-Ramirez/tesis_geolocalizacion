@@ -4,36 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <title>Panel | boleteros/cajeros</title>
+  <title>Panel | Gestión de Técnicos</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
-    {% load static %}
+  {% load static %}
   <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
 </head>
 
 <body>
 <div class="layout">
-  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="brand">NECOMPLUS</div>
     <ul class="menu">
       <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
       <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
-      <li><a href="{% url 'panel_incidencias' %}">Incidencias</a></li>
+      <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
       <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
     </ul>
   </aside>
 
-  <!-- Main -->
   <section class="main">
-
     <div class="title-strip">Sistema de Gestión de Técnicos con Geolocalización</div>
-        <button class="hamburger" id="btnMenu">
-            ☰
-        </button>
+
+    <button class="hamburger" id="btnMenu">☰</button>
+
     <p class="hello">Administrador del sistema — Bienvenido {{ usuario_nombre }}</p>
 
     <div class="actions-bar">
-      <button id="btnOpenNuevoBC" class="btn btn-add" type="button">Agregar boletero/cajero</button>
+      <h3 style="margin:0; color:#1f2937;">Técnicos registrados</h3>
     </div>
 
     <div class="table-card">
@@ -44,46 +41,55 @@
               <th>Fecha creación</th>
               <th>Nombre</th>
               <th>Usuario</th>
-              <th>Cargo</th>
-              <th>Terminal</th>
+              <th>Celular</th>
               <th>Estado</th>
-              <th style="width:120px; text-align:center;">Acciones</th>
+              <th>Latitud actual</th>
+              <th>Longitud actual</th>
+              <th>Zona</th>
+              <th style="text-align:center;">Acciones</th>
             </tr>
           </thead>
-          <tbody>
-            {% for b in boleteros_rows %}
-            <tr>
-              <td>{{ b.fecha_creacion|date:"d-m-Y" }}</td>
 
-              <td>{{ b.nombre }}</td>
-              <td>{{ b.usuario }}</td>
-              <td>{{ b.cargo }}</td>
-              <td>{{ b.terminal }}</td>
+          <tbody>
+            {% for t in tecnicos_rows %}
+            <tr>
+              <td>{{ t.fecha_creacion|date:"d-m-Y" }}</td>
+              <td>{{ t.nombre }}</td>
+              <td>{{ t.usuario_login }}</td>
+              <td>{{ t.celular }}</td>
+
               <td>
-                {% if b.estado|lower == 'activo' %}
+                {% if t.estado == "Activo" %}
                   <span class="tag-on">Activo</span>
                 {% else %}
-                  <span class="tag-off">{{ b.estado }}</span>
+                  <span class="tag-off">Inactivo</span>
                 {% endif %}
               </td>
+
+              <td>{{ t.latitud }}</td>
+              <td>{{ t.longitud }}</td>
+              <td>{{ t.nombre_zona }}</td>
+
               <td style="text-align:center;">
-                <button
-                  class="btn-small btnEditBC"
-                  type="button"
-                  data-id="{{ b.id_bc }}"
-                  data-nombre="{{ b.nombre }}"
-                  data-usuario="{{ b.usuario }}"
-                  data-cargo="{{ b.cargo }}"
-                  data-estado="{{ b.estado }}"
-                  data-terminal="{{ b.terminal }}">
-                  Editar
-                </button>
+                {% if t.tiene_zona %}
+                  <a href="{% url 'ver_zona_tecnico' t.id_tecnico %}" class="btn-small">
+                    Ver zona
+                  </a>
+
+                  <a href="{% url 'asignar_zona_tecnico' t.id_tecnico %}" class="btn-small">
+                    Editar zona
+                  </a>
+                {% else %}
+                  <a href="{% url 'asignar_zona_tecnico' t.id_tecnico %}" class="btn-small">
+                    Asignar zona
+                  </a>
+                {% endif %}
               </td>
             </tr>
             {% empty %}
             <tr>
-              <td colspan="6" style="text-align:center; color:#6b7280;">
-                No hay boleteros/cajeros
+              <td colspan="9" style="text-align:center; color:#6b7280;">
+                No hay técnicos registrados
               </td>
             </tr>
             {% endfor %}
@@ -98,251 +104,34 @@
           <a href="?page=1">&laquo; Primero</a>
           <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
         {% endif %}
+
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+
         {% if page_obj.has_next %}
           <a href="?page={{ page_obj.next_page_number }}">Siguiente</a>
           <a href="?page={{ page_obj.paginator.num_pages }}">Último &raquo;</a>
         {% endif %}
       </div>
     {% endif %}
-
-    <!-- MODAL NUEVO Boletero/Cajero -->
-    <div id="modalNuevoBC" class="modal-backdrop">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3 class="modal-title">Registrar boletero / cajero</h3>
-          <button type="button" class="modal-close" data-close>&times;</button>
-        </div>
-
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="accion" value="crear">
-
-          <div class="modal-row">
-            <label>Nombre completo</label>
-            <input type="text" name="nombre" required>
-          </div>
-
-          <div class="modal-row">
-            <label>Usuario</label>
-            <input type="text" name="usuario" required>
-          </div>
-
-          <div class="modal-row">
-            <label>Cargo</label>
-            <select name="cargo" required>
-              <option value="">Seleccione…</option>
-              <option value="boletero">Boletero</option>
-              <option value="cajero">Cajero</option>
-            </select>
-          </div>
-
-          <div class="modal-row">
-            <label>Estado</label>
-            <select name="estado" required>
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
-            </select>
-          </div>
-
-          <div class="modal-row">
-            <label>Terminal</label>
-            <select name="id_terminal">
-              <option value="">— Sin terminal —</option>
-              {% for t in terminales %}
-                <option value="{{ t.id_terminal }}">{{ t.nombre_terminal }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="modal-footer" style="justify-content:flex-end;">
-            <button type="button" class="btn btn-del" data-close>Cancelar</button>
-            <button type="submit" class="btn btn-add">Guardar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- MODAL EDITAR Boletero/Cajero -->
-    <div id="modalEditBC" class="modal-backdrop">
-    <div class="modal-box">
-        <div class="modal-header">
-        <h3 class="modal-title">Editar boletero / cajero</h3>
-        <button type="button" class="modal-close" data-close>&times;</button>
-        </div>
-
-        <!-- OJO: SOLO HAY UN FORM -->
-        <form method="post" id="formEditBC">
-        {% csrf_token %}
-        <input type="hidden" name="accion" id="accionBC" value="editar">
-        <input type="hidden" name="id_bc" id="editIdBc">
-
-        <div class="modal-row">
-            <label>Nombre completo</label>
-            <input type="text" name="nombre" id="editNombre" required>
-        </div>
-
-        <div class="modal-row">
-            <label>Usuario</label>
-            <input type="text" name="usuario" id="editUsuario" required>
-        </div>
-
-        <div class="modal-row">
-            <label>Cargo</label>
-            <select name="cargo" id="editCargo" required>
-            <option value="">Seleccione…</option>
-            <option value="boletero">Boletero</option>
-            <option value="cajero">Cajero</option>
-            </select>
-        </div>
-
-        <div class="modal-row">
-            <label>Estado</label>
-            <select name="estado" id="editEstado" required>
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-            </select>
-        </div>
-
-        <div class="modal-row">
-            <label>Terminal</label>
-            <select name="id_terminal" id="editTerminal">
-            <option value="">— Sin terminal —</option>
-            {% for t in terminales %}
-                <option value="{{ t.id_terminal }}">{{ t.nombre_terminal }}</option>
-            {% endfor %}
-            </select>
-        </div>
-
-        <div class="modal-footer">
-            <button type="button" class="btn-outline-del" id="btnDeleteBC">
-            Eliminar
-            </button>
-
-            <div style="flex:1"></div>
-
-            <button type="button" class="btn btn-del" data-close>Cancelar</button>
-            <button type="submit" class="btn btn-add" id="btnGuardarBC">Guardar</button>
-        </div>
-        </form>
-    </div>
-    </div>
-
-
   </section>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function(){
-  const modalNuevo = document.getElementById('modalNuevoBC');
-  const modalEdit  = document.getElementById('modalEditBC');
-  const btnNuevo   = document.getElementById('btnOpenNuevoBC');
-  const btnsEdit   = document.querySelectorAll('.btnEditBC');
+const btnMenu = document.getElementById('btnMenu');
+const sidebar = document.querySelector('.sidebar');
 
-  function openModal(m){
-    if (m) m.style.display = 'flex';
-  }
-  function closeModals(){
-    [modalNuevo, modalEdit].forEach(m => { if (m) m.style.display = 'none'; });
-  }
-
-  if (btnNuevo) btnNuevo.addEventListener('click', () => openModal(modalNuevo));
-
-  document.querySelectorAll('[data-close]').forEach(btn => {
-    btn.addEventListener('click', closeModals);
-  });
-
-  [modalNuevo, modalEdit].forEach(m => {
-    if (!m) return;
-    m.addEventListener('click', e => {
-      if (e.target === m) closeModals();
-    });
-  });
-
-  // ---- Campos del modal de edición ----
-  const editIdBc     = document.getElementById('editIdBc');
-  const editNombre   = document.getElementById('editNombre');
-  const editUsuario  = document.getElementById('editUsuario');
-  const editCargo    = document.getElementById('editCargo');
-  const editEstado   = document.getElementById('editEstado');
-  const editTerminal = document.getElementById('editTerminal');
-
-  const formEditBC   = document.getElementById('formEditBC');
-  const accionBC     = document.getElementById('accionBC');
-  const btnDelete    = document.getElementById('btnDeleteBC');
-  const btnGuardar   = document.getElementById('btnGuardarBC');
-
-  // Rellenar datos al hacer clic en "Editar"
-  btnsEdit.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id       = btn.dataset.id;
-      const nombre   = btn.dataset.nombre;
-      const usuario  = btn.dataset.usuario;
-      const cargo    = btn.dataset.cargo;
-      const estado   = btn.dataset.estado;
-      const terminal = btn.dataset.terminal;
-
-      if (editIdBc)     editIdBc.value    = id;
-      if (editNombre)   editNombre.value  = nombre;
-      if (editUsuario)  editUsuario.value = usuario;
-      if (editCargo)    editCargo.value   = cargo.toLowerCase();
-      if (editEstado)   editEstado.value  = estado.toLowerCase();
-
-      if (editTerminal) {
-        let found = false;
-        for (const opt of editTerminal.options) {
-          if (opt.text.trim() === terminal.trim()) {
-            opt.selected = true;
-            found = true;
-            break;
-          }
-        }
-        if (!found) editTerminal.value = "";
-      }
-
-      // Siempre que abro el modal, por defecto es EDITAR
-      if (accionBC) accionBC.value = 'editar';
-
-      openModal(modalEdit);
-    });
-  });
-
-  // Botón ELIMINAR → cambia accion a "eliminar" y envía el form
-  if (btnDelete && formEditBC && accionBC) {
-    btnDelete.addEventListener('click', () => {
-      if (confirm('¿Seguro que deseas eliminar este boletero/cajero?')) {
-        accionBC.value = 'eliminar';
-        formEditBC.submit();
-      }
-    });
-  }
-
-  // Botón GUARDAR → fuerza accion = "editar" por si acaso
-  if (btnGuardar && formEditBC && accionBC) {
-    btnGuardar.addEventListener('click', (e) => {
-      e.preventDefault();
-      accionBC.value = 'editar';
-      formEditBC.submit();
-    });
-  }
-});
-
-</script>
-
-<script>
-  const btnMenu = document.getElementById('btnMenu');
-  const sidebar = document.querySelector('.sidebar');
-
+if (btnMenu && sidebar) {
   btnMenu.addEventListener('click', () => {
     sidebar.classList.toggle('open');
   });
+
   document.addEventListener('click', (e) => {
-  if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
-    sidebar.classList.remove('open');
-  }
-});
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
 </script>
 
 </body>
-
 </html>
