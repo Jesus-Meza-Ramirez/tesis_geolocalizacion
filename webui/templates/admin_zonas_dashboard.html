@@ -1,0 +1,83 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Gestión de Zonas</title>
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+</head>
+
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">NECOMPLUS</div>
+    <ul class="menu">
+      <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
+      <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'panel_zonas' %}">Gestión de Zonas</a></li>
+      <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
+      <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
+    </ul>
+  </aside>
+
+  <section class="main">
+    <div class="title-strip">Gestión de Zonas</div>
+
+    <p class="hello">Administrador del sistema — Bienvenido {{ usuario_nombre }}</p>
+
+    <div class="actions-bar">
+        <a href="{% url 'crear_zona' %}" class="btn btn-add">
+            Crear nueva zona
+        </a>
+    </div>
+
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha creación</th>
+              <th>Nombre de zona</th>
+              <th>Técnicos asignados</th>
+              <th>Estado</th>
+              <th style="text-align:center;">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for z in zonas_rows %}
+            <tr>
+              <td>{{ z.fecha_creacion|date:"d-m-Y" }}</td>
+              <td>{{ z.nombre_zona }}</td>
+              <td>{{ z.tecnicos }}</td>
+
+              <td>
+                {% if z.activo %}
+                  <span class="tag-on">Activa</span>
+                {% else %}
+                  <span class="tag-off">Inactiva</span>
+                {% endif %}
+              </td>
+
+              <td style="text-align:center;">
+                <a href="{% url 'ver_zona' z.id_zona %}?origen=zonas" class="btn-small">
+                Ver zona
+                </a>
+                <a href="{% url 'editar_zona' z.id_zona %}" class="btn-small">Editar zona</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" style="text-align:center; color:#6b7280;">
+                No hay zonas registradas
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

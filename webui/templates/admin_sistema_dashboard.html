@@ -16,6 +16,7 @@
     <ul class="menu">
       <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
       <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'panel_zonas' %}">Gestión de Zonas</a></li>
       <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
       <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
     </ul>
@@ -47,6 +48,7 @@
               <th>Nombre</th>
               <th>Usuario</th>
               <th>Celular</th>
+              <th>Turno</th>
               <th>Rol</th>
               <th style="text-align:center;">Estado</th>
               <th style="text-align:center;">Acciones</th>
@@ -60,6 +62,7 @@
                 <td>{{ u.nombre }}</td>
                 <td>{{ u.usuario_login }}</td>
                 <td>{{ u.celular|default:"—" }}</td>
+                <td>{{ u.turno|default:"—" }}</td>
                 <td>{{ u.rol_mostrar|default:u.rol }}</td>
 
                 <td style="text-align:center;">
@@ -79,6 +82,7 @@
                     data-usuario="{{ u.usuario_login|escapejs }}"
                     data-pass="{{ u.contrasena|escapejs }}"
                     data-celular="{{ u.celular|default:''|escapejs }}"
+                    data-turno="{{ u.turno|default:''|escapejs }}"
                     data-rol="{{ u.rol }}"
                     data-terminal="{{ u.terminal_id }}"
                     data-activo="{{ u.activo_raw }}"
@@ -90,7 +94,7 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="7" style="text-align:center; color:#6b7280;">
+                <td colspan="8" style="text-align:center; color:#6b7280;">
                   No hay usuarios registrados
                 </td>
               </tr>
@@ -146,6 +150,15 @@
           <div class="modal-row">
             <label>Celular</label>
             <input type="text" name="celular" id="celularField" autocomplete="off">
+          </div>
+
+          <div class="modal-row" id="turnoRow" style="display:none;">
+            <label>Turno</label>
+            <select name="turno" id="turnoField">
+              <option value="">Seleccione...</option>
+              <option value="mañana">Mañana</option>
+              <option value="tarde">Tarde</option>
+            </select>
           </div>
 
           <div class="modal-row">
@@ -216,6 +229,8 @@ document.addEventListener('DOMContentLoaded', function(){
   const usuarioField = document.getElementById('usuarioField');
   const passField = document.getElementById('passField');
   const celularField = document.getElementById('celularField');
+  const turnoField = document.getElementById('turnoField');
+  const turnoRow = document.getElementById('turnoRow');
   const rolField = document.getElementById('rolField');
   const terminalField = document.getElementById('terminalField');
   const activoField = document.getElementById('activoField');
@@ -231,11 +246,15 @@ document.addEventListener('DOMContentLoaded', function(){
 
     passField.required = true;
 
+    celularField.value = '';
+    turnoField.value = '';
+
     if (activoField) activoField.checked = true;
     if (fechaField) fechaField.value = fechaField.getAttribute('data-today');
 
     if (deleteBtn) deleteBtn.style.display = 'none';
 
+    toggleTurno();
     modal.style.display = 'flex';
   }
 
@@ -248,6 +267,7 @@ document.addEventListener('DOMContentLoaded', function(){
     usuarioField.value = btn.dataset.usuario || '';
     passField.value = btn.dataset.pass || '';
     celularField.value = btn.dataset.celular || '';
+    turnoField.value = btn.dataset.turno || '';
     rolField.value = btn.dataset.rol || '';
     terminalField.value = btn.dataset.terminal || '';
     activoField.checked = (btn.dataset.activo === '1');
@@ -258,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
     if (deleteBtn) deleteBtn.style.display = 'inline-block';
 
+    toggleTurno();
     modal.style.display = 'flex';
   }
 
@@ -291,6 +312,27 @@ document.addEventListener('DOMContentLoaded', function(){
       }
     });
   }
+
+
+  function toggleTurno() {
+
+    if (rolField.value === 'tecnico') {
+
+        turnoRow.style.display = 'block';
+
+    } else {
+
+        turnoRow.style.display = 'none';
+        turnoField.value = '';
+
+    }
+}
+
+rolField.addEventListener('change', toggleTurno);
+
+
+
+
 });
 </script>
 

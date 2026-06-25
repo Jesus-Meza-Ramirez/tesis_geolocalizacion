@@ -17,6 +17,7 @@
     <ul class="menu">
       <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
       <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'panel_zonas' %}">Gestión de Zonas</a></li>
       <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
       <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
     </ul>
@@ -42,10 +43,11 @@
               <th>Nombre</th>
               <th>Usuario</th>
               <th>Celular</th>
+              <th>Turno</th>
               <th>Estado</th>
               <th>Latitud actual</th>
               <th>Longitud actual</th>
-              <th>Zona</th>
+              <th>Zonas</th>
               <th style="text-align:center;">Acciones</th>
             </tr>
           </thead>
@@ -57,6 +59,7 @@
               <td>{{ t.nombre }}</td>
               <td>{{ t.usuario_login }}</td>
               <td>{{ t.celular }}</td>
+              <td>{{ t.turno|default:"Sin turno" }}</td>
 
               <td>
                 {% if t.estado == "Activo" %}
@@ -72,23 +75,31 @@
 
               <td style="text-align:center;">
                 {% if t.tiene_zona %}
-                  <a href="{% url 'ver_zona_tecnico' t.id_tecnico %}" class="btn-small">
-                    Ver zona
-                  </a>
+                  {% if t.id_zona %}
+                    <a href="{% url 'ver_zonas_tecnico' t.id_tecnico %}" class="btn-small">
+                      Ver zonas
+                    </a>
+                  {% endif %}
 
-                  <a href="{% url 'asignar_zona_tecnico' t.id_tecnico %}" class="btn-small">
-                    Editar zona
-                  </a>
+                  <button
+                    type="button"
+                    class="btn-small"
+                    onclick="abrirModalZona('{{ t.id_tecnico }}')">
+                    Cambiar zonas
+                  </button>
                 {% else %}
-                  <a href="{% url 'asignar_zona_tecnico' t.id_tecnico %}" class="btn-small">
-                    Asignar zona
-                  </a>
+                  <button
+                    type="button"
+                    class="btn-small"
+                    onclick="abrirModalZona('{{ t.id_tecnico }}')">
+                    Asignar zonas
+                  </button>
                 {% endif %}
               </td>
             </tr>
             {% empty %}
             <tr>
-              <td colspan="9" style="text-align:center; color:#6b7280;">
+              <td colspan="10" style="text-align:center; color:#6b7280;">
                 No hay técnicos registrados
               </td>
             </tr>
@@ -115,6 +126,83 @@
     {% endif %}
   </section>
 </div>
+
+<div id="modalZona"
+     style="display:none;
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:rgba(0,0,0,.6);
+            z-index:9999;">
+
+  <div style="
+      background:white;
+      width:520px;
+      max-width:95%;
+      margin:80px auto;
+      padding:20px;
+      border-radius:10px;
+  ">
+
+    <h3>Asignar zonas al técnico</h3>
+
+    <form method="post" action="{% url 'guardar_asignacion_zona' %}">
+      {% csrf_token %}
+
+      <input type="hidden" id="idTecnicoZona" name="id_tecnico">
+
+      <label>Zonas:</label>
+
+      <div style="
+          max-height:280px;
+          overflow-y:auto;
+          border:1px solid #ddd;
+          padding:10px;
+          border-radius:8px;
+          margin-top:8px;
+      ">
+
+        {% for zona in zonas %}
+          <label style="display:block; margin-bottom:8px;">
+            <input type="checkbox" name="zonas" value="{{ zona.id_zona }}">
+            {{ zona.nombre_zona }}
+          </label>
+        {% empty %}
+          <p style="color:#6b7280;">No hay zonas registradas.</p>
+        {% endfor %}
+
+      </div>
+
+      <br>
+
+      <button type="submit" class="btn-small">
+        Guardar
+      </button>
+
+      <button type="button" class="btn-small" onclick="cerrarModalZona()">
+        Cancelar
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+function abrirModalZona(idTecnico) {
+  document.getElementById("idTecnicoZona").value = idTecnico;
+
+  document.querySelectorAll('input[name="zonas"]').forEach(function(chk) {
+    chk.checked = false;
+  });
+
+  document.getElementById("modalZona").style.display = "block";
+}
+
+function cerrarModalZona() {
+  document.getElementById("modalZona").style.display = "none";
+}
+</script>
 
 <script>
 const btnMenu = document.getElementById('btnMenu');

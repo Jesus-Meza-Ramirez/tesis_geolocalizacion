@@ -25,7 +25,8 @@ from incidencias.models import (
     CoordenadaZona,
     BoleteroCajero,
     Terminal,
-    Cliente
+    Cliente,
+    TecnicoZona,
 )
 
 
@@ -396,6 +397,7 @@ def panel_admin_sistema(request):
         activo = bool(request.POST.get('activo'))
         terminal_id = request.POST.get('id_terminal') or None
         celular = (request.POST.get('celular') or '').strip()
+        turno = (request.POST.get('turno') or '').strip()
 
         if accion == 'delete' and id_usuario:
             usuario = Usuario.objects.filter(pk=id_usuario).first()
@@ -437,12 +439,15 @@ def panel_admin_sistema(request):
                     id_usuario=u,
                     defaults={
                         "celular": celular,
+                        "turno": turno,
                         "fecha_creacion": timezone.now()
                     }
                 )
-                if not creado:
-                    tecnico.celular = celular
-                    tecnico.save()
+
+                tecnico.celular = celular
+                tecnico.turno = turno
+                tecnico.save()
+
             else:
                 Tecnico.objects.filter(id_usuario=u).delete()
 
@@ -481,6 +486,7 @@ def panel_admin_sistema(request):
             'usuario_login': u.usuario_login,
             'contrasena': u.contrasena or '',
             'celular': tecnico.celular if tecnico else '',
+            'turno': tecnico.turno if tecnico else '',
             'rol': u.rol,
             'rol_mostrar': roles.get(u.rol, u.rol),
             'terminal_id': getattr(u, 'id_terminal_id', '') or '',
@@ -1000,7 +1006,23 @@ def panel_boleteros(request):
 
     for t in page_obj.object_list:
         usuario = t.id_usuario
-        zona = Zona.objects.filter(id_tecnico=t).first()
+
+        asignaciones = (
+            TecnicoZona.objects
+            .select_related('id_zona')
+            .filter(
+                id_tecnico=t,
+                activo=True
+            )
+        )
+
+        zonas_asignadas = [
+            a.id_zona
+            for a in asignaciones
+            if a.id_zona
+        ]
+
+        zona_principal = zonas_asignadas[0] if zonas_asignadas else None
 
         tecnicos_rows.append({
             'id_tecnico': t.id_tecnico,
@@ -1008,20 +1030,27 @@ def panel_boleteros(request):
             'nombre': usuario.nombre if usuario else '—',
             'usuario_login': usuario.usuario_login if usuario else '—',
             'celular': t.celular or '—',
+            'turno': t.turno or 'Sin turno',
             'estado': 'Activo' if usuario and usuario.activo else 'Inactivo',
             'latitud': t.latitud_actual or '—',
             'longitud': t.longitud_actual or '—',
-            'tiene_zona': True if zona else False,
-            'nombre_zona': zona.nombre_zona if zona else 'Sin zona',
+            'tiene_zona': True if zonas_asignadas else False,
+            'nombre_zona': ', '.join([z.nombre_zona for z in zonas_asignadas]) if zonas_asignadas else 'Sin zona',
+            'id_zona': zona_principal.id_zona if zona_principal else None,
         })
 
     context = {
         'usuario_nombre': request.session.get('nombre', 'Usuario'),
         'tecnicos_rows': tecnicos_rows,
         'page_obj': page_obj,
+        'zonas': Zona.objects.filter(activo=True).order_by('nombre_zona'),
     }
 
-    return render(request, 'admin_boleteros_dashboard.html', context)
+    return render(
+        request,
+        'admin_boleteros_dashboard.html',
+        context
+    )
 
 
 
@@ -1209,3 +1238,290 @@ def panel_tecnico(request):
     }
 
     return render(request, "tecnico_dashboard.html", context)
+
+
+
+
+@require_POST
+def atender_orden_tecnico(request):
+
+    id_orden = request.POST.get("id_orden")
+    observacion = request.POST.get("observacion_tecnico")
+
+    orden = OrdenAtencion.objects.get(pk=id_orden)
+
+    orden.estado = "atendido"
+    orden.observacion_tecnico = observacion
+    orden.fecha_atencion = timezone.now()
+
+    orden.save()
+
+    return redirect("panel_tecnico")
+
+
+
+@require_POST
+def guardar_asignacion_zona(request):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    id_tecnico = request.POST.get('id_tecnico')
+    zonas_ids = request.POST.getlist('zonas')
+
+    tecnico = get_object_or_404(Tecnico, pk=id_tecnico)
+
+    TecnicoZona.objects.filter(
+        id_tecnico=tecnico,
+        activo=True
+    ).update(activo=False)
+
+    for id_zona in zonas_ids:
+        zona = get_object_or_404(Zona, pk=id_zona)
+
+        TecnicoZona.objects.create(
+            id_tecnico=tecnico,
+            id_zona=zona,
+            fecha_asignacion=timezone.now(),
+            activo=True
+        )
+
+    return redirect('panel_boleteros')
+
+
+
+
+def panel_zonas(request):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    zonas = Zona.objects.all().order_by('nombre_zona')
+
+    zonas_rows = []
+
+    for z in zonas:
+        asignaciones = (
+            TecnicoZona.objects
+            .select_related('id_tecnico', 'id_tecnico__id_usuario')
+            .filter(id_zona=z, activo=True)
+        )
+
+        tecnicos = []
+        for a in asignaciones:
+            if a.id_tecnico and a.id_tecnico.id_usuario:
+                tecnicos.append(a.id_tecnico.id_usuario.nombre)
+
+        zonas_rows.append({
+            'id_zona': z.id_zona,
+            'nombre_zona': z.nombre_zona,
+            'fecha_creacion': z.fecha_creacion,
+            'activo': z.activo,
+            'tecnicos': ', '.join(tecnicos) if tecnicos else 'Sin técnicos',
+        })
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'zonas_rows': zonas_rows,
+    }
+
+    return render(request, 'admin_zonas_dashboard.html', context)
+
+
+
+
+
+def crear_zona(request):
+
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    return render(
+        request,
+        'crear_zona.html'
+    )
+
+
+
+
+@require_POST
+def guardar_zona(request):
+    if not request.session.get('uid'):
+        return JsonResponse({'ok': False, 'error': 'Sesión no válida'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+
+        nombre_zona = (data.get('nombre_zona') or '').strip()
+        coordenadas = data.get('coordenadas') or []
+
+        if not nombre_zona:
+            return JsonResponse({'ok': False, 'error': 'Ingrese el nombre de la zona.'})
+
+        if len(coordenadas) < 3:
+            return JsonResponse({'ok': False, 'error': 'Debe dibujar una zona con al menos 3 puntos.'})
+
+        zona = Zona.objects.create(
+            nombre_zona=nombre_zona,
+            id_tecnico=None,
+            fecha_creacion=timezone.now(),
+            activo=True
+        )
+
+        puntos = []
+
+        for punto in coordenadas:
+            puntos.append(
+                CoordenadaZona(
+                    id_zona=zona,
+                    latitud=punto.get('latitud'),
+                    longitud=punto.get('longitud'),
+                    orden_punto=punto.get('orden')
+                )
+            )
+
+        CoordenadaZona.objects.bulk_create(puntos)
+
+        return JsonResponse({'ok': True, 'id_zona': zona.id_zona})
+
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    
+    
+    
+    
+
+
+
+
+def ver_zona(request, id_zona):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    zona = get_object_or_404(Zona, pk=id_zona)
+
+    puntos = CoordenadaZona.objects.filter(
+        id_zona=zona
+    ).order_by('orden_punto')
+
+    coordenadas_zona = [
+        [float(p.latitud), float(p.longitud)]
+        for p in puntos
+    ]
+    origen = request.GET.get("origen", "zonas")
+
+    volver_url = "panel_boleteros" if origen == "tecnicos" else "panel_zonas"
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'zona': zona,
+        'coordenadas_zona': coordenadas_zona,
+        "volver_url": volver_url,
+    }
+
+    return render(request, 'ver_zona.html', context)
+
+
+def editar_zona(request, id_zona):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    zona = get_object_or_404(Zona, pk=id_zona)
+
+    puntos = CoordenadaZona.objects.filter(
+        id_zona=zona
+    ).order_by('orden_punto')
+
+    coordenadas_zona = [
+        [float(p.latitud), float(p.longitud)]
+        for p in puntos
+    ]
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'zona': zona,
+        'coordenadas_zona': coordenadas_zona,
+    }
+
+    return render(request, 'editar_zona.html', context)
+
+
+@require_POST
+def actualizar_zona(request, id_zona):
+    if not request.session.get('uid'):
+        return JsonResponse({'ok': False, 'error': 'Sesión no válida'}, status=403)
+
+    zona = get_object_or_404(Zona, pk=id_zona)
+
+    try:
+        data = json.loads(request.body)
+
+        nombre_zona = (data.get('nombre_zona') or '').strip()
+        coordenadas = data.get('coordenadas') or []
+
+        if not nombre_zona:
+            return JsonResponse({'ok': False, 'error': 'Ingrese el nombre de la zona.'})
+
+        if len(coordenadas) < 3:
+            return JsonResponse({'ok': False, 'error': 'Debe dibujar una zona con al menos 3 puntos.'})
+
+        zona.nombre_zona = nombre_zona
+        zona.save()
+
+        CoordenadaZona.objects.filter(id_zona=zona).delete()
+
+        for punto in coordenadas:
+            CoordenadaZona.objects.create(
+                id_zona=zona,
+                latitud=punto.get('latitud'),
+                longitud=punto.get('longitud'),
+                orden_punto=punto.get('orden')
+            )
+
+        return JsonResponse({'ok': True})
+
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+    
+    
+    
+    
+
+
+
+def ver_zonas_tecnico(request, id_tecnico):
+    if not request.session.get('uid'):
+        return redirect('login')
+
+    tecnico = get_object_or_404(Tecnico, pk=id_tecnico)
+
+    asignaciones = (
+        TecnicoZona.objects
+        .select_related('id_zona')
+        .filter(id_tecnico=tecnico, activo=True)
+    )
+
+    zonas_data = []
+
+    for asignacion in asignaciones:
+        zona = asignacion.id_zona
+
+        puntos = CoordenadaZona.objects.filter(
+            id_zona=zona
+        ).order_by('orden_punto')
+
+        coordenadas = [
+            [float(p.latitud), float(p.longitud)]
+            for p in puntos
+        ]
+
+        zonas_data.append({
+            'nombre': zona.nombre_zona,
+            'coordenadas': coordenadas
+        })
+
+    context = {
+        'usuario_nombre': request.session.get('nombre', 'Usuario'),
+        'tecnico': tecnico,
+        'zonas_data': zonas_data,
+    }
+
+    return render(request, 'ver_zonas_tecnico.html', context)

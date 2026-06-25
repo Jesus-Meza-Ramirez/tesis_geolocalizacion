@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Ver zonas del técnico</title>
+
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+
+  <style>
+    #map {
+      width: 100%;
+      height: 560px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      margin-top: 14px;
+    }
+
+    .zona-card {
+      background: #fff;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-top: 18px;
+    }
+
+    .btn-back {
+      background: #991b1b;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">NECOMPLUS</div>
+    <ul class="menu">
+      <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
+      <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+      <li><a href="{% url 'panel_zonas' %}">Gestión de Zonas</a></li>
+      <li><a href="{% url 'panel_incidencias' %}">Órdenes</a></li>
+      <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
+    </ul>
+  </aside>
+
+  <section class="main">
+    <div class="title-strip">Sistema de Gestión de Técnicos con Geolocalización</div>
+
+    <p class="hello">Zonas asignadas al técnico</p>
+
+    <div class="zona-card">
+      <a href="{% url 'panel_boleteros' %}" class="btn-back">Volver</a>
+      <div id="map"></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const zonasData = {{ zonas_data|safe }};
+
+const mapa = L.map("map").setView([-12.0464, -77.0428], 11);
+
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(mapa);
+
+let boundsGeneral = null;
+
+zonasData.forEach(function(zona) {
+  if (zona.coordenadas.length > 0) {
+    const polygon = L.polygon(zona.coordenadas, {
+      weight: 3
+    }).addTo(mapa);
+
+    polygon.bindPopup(zona.nombre);
+
+    if (boundsGeneral === null) {
+      boundsGeneral = polygon.getBounds();
+    } else {
+      boundsGeneral.extend(polygon.getBounds());
+    }
+  }
+});
+
+if (boundsGeneral) {
+  mapa.fitBounds(boundsGeneral);
+}
+</script>
+
+</body>
+</html>

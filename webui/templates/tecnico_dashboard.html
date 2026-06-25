@@ -89,25 +89,25 @@
             <td>{{ r.observacion_tecnico|default:"—" }}</td>
 
             <td>
-                {% if r.estado == "por_atender" %}
-
-                    <button class="btn-small">
-                        Atender
-                    </button>
-
-                    <br><br>
-
-                    <button
-                        class="btn-small"
-                        onclick="abrirRuta('{{ r.latitud }}','{{ r.longitud }}')">
-
-                        Ver ubicación
-
-                    </button>
-
-                {% else %}
-                    —
-                {% endif %}
+              {% if r.estado == "por_atender" %}
+                <button
+                  class="btn-small"
+                  onclick="abrirModalAtender(
+                    '{{ r.id_orden|escapejs }}',
+                    '{{ r.cliente|escapejs }}',
+                    '{{ r.celular|escapejs }}',
+                    '{{ r.direccion|escapejs }}',
+                    '{{ r.distrito|escapejs }}',
+                    '{{ r.departamento|escapejs }}',
+                    '{{ r.indicaciones|escapejs }}',
+                    '{{ r.latitud|escapejs }}',
+                    '{{ r.longitud|escapejs }}'
+                  )">
+                  Atender
+                </button>
+              {% else %}
+                —
+              {% endif %}
             </td>
           </tr>
           {% empty %}
@@ -124,59 +124,124 @@
   </section>
 </div>
 
+<!-- MODAL ATENDER -->
+<div id="modalAtender"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,.6); z-index:9999; padding-top:70px;">
 
+  <div style="background:white; width:520px; max-width:95%; margin:auto; padding:24px;
+              border-radius:10px; position:relative; font-size:14px;">
 
+    <span onclick="cerrarModalAtender()"
+          style="position:absolute; top:10px; right:15px; cursor:pointer; font-size:18px;">✖</span>
+
+    <h2 style="margin-top:0; color:#e68613;">Atender orden</h2>
+
+    <p><strong>Cliente:</strong> <span id="modalCliente"></span></p>
+    <p><strong>Celular:</strong> <span id="modalCelular"></span></p>
+    <p><strong>Dirección:</strong> <span id="modalDireccion"></span></p>
+    <p><strong>Distrito:</strong> <span id="modalDistrito"></span></p>
+    <p><strong>Departamento:</strong> <span id="modalDepartamento"></span></p>
+    <p><strong>Indicaciones:</strong> <span id="modalIndicaciones"></span></p>
+
+    <button type="button"
+            class="btn-small"
+            onclick="abrirRutaModal()">
+      Ver ubicación
+    </button>
+
+    <form method="post" action="{% url 'atender_orden_tecnico' %}" style="margin-top:15px;">
+      {% csrf_token %}
+
+      <input type="hidden" name="id_orden" id="modalIdOrden">
+      <input type="hidden" id="modalLatitud">
+      <input type="hidden" id="modalLongitud">
+
+      <label style="display:block; margin-top:12px;">
+        Observación del técnico:
+      </label>
+
+      <textarea name="observacion_tecnico"
+                required
+                placeholder="Ingrese la observación de la atención"
+                style="width:100%; height:100px; margin-top:8px;"></textarea>
+
+      <button type="submit"
+              style="margin-top:12px; width:100%; padding:10px; background:#e68613;
+                     color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+        Guardar atención
+      </button>
+    </form>
+  </div>
+</div>
 
 <script>
+function abrirModalAtender(id, cliente, celular, direccion, distrito, departamento, indicaciones, latitud, longitud) {
+  document.getElementById("modalIdOrden").value = id;
+  document.getElementById("modalCliente").textContent = cliente;
+  document.getElementById("modalCelular").textContent = celular;
+  document.getElementById("modalDireccion").textContent = direccion;
+  document.getElementById("modalDistrito").textContent = distrito;
+  document.getElementById("modalDepartamento").textContent = departamento;
+  document.getElementById("modalIndicaciones").textContent = indicaciones;
+  document.getElementById("modalLatitud").value = latitud;
+  document.getElementById("modalLongitud").value = longitud;
 
-function abrirRuta(latCliente, lonCliente) {
-    if (!latCliente || !lonCliente) {
-        alert("El cliente no tiene coordenadas registradas.");
-        return;
-    }
-
-    const destino = latCliente + "," + lonCliente;
-
-    if (!navigator.geolocation) {
-        window.location.href = "https://www.google.com/maps/search/?api=1&query=" + destino;
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            const origen = position.coords.latitude + "," + position.coords.longitude;
-
-            const url =
-                "https://www.google.com/maps/dir/?api=1" +
-                "&origin=" + origen +
-                "&destination=" + destino +
-                "&travelmode=driving";
-
-            window.location.href = url;
-        },
-        function() {
-            const url =
-                "https://www.google.com/maps/dir/?api=1" +
-                "&destination=" + destino +
-                "&travelmode=driving";
-
-            window.location.href = url;
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 8000,
-            maximumAge: 0
-        }
-    );
+  document.getElementById("modalAtender").style.display = "block";
 }
 
+function cerrarModalAtender() {
+  document.getElementById("modalAtender").style.display = "none";
+}
+
+function abrirRutaModal() {
+  const latCliente = document.getElementById("modalLatitud").value;
+  const lonCliente = document.getElementById("modalLongitud").value;
+
+  abrirRuta(latCliente, lonCliente);
+}
+
+function abrirRuta(latCliente, lonCliente) {
+  if (!latCliente || !lonCliente) {
+    alert("El cliente no tiene coordenadas registradas.");
+    return;
+  }
+
+  const destino = latCliente + "," + lonCliente;
+
+  if (!navigator.geolocation) {
+    window.location.href = "https://www.google.com/maps/search/?api=1&query=" + destino;
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      const origen = position.coords.latitude + "," + position.coords.longitude;
+
+      const url =
+        "https://www.google.com/maps/dir/?api=1" +
+        "&origin=" + origen +
+        "&destination=" + destino +
+        "&travelmode=driving";
+
+      window.location.href = url;
+    },
+    function() {
+      const url =
+        "https://www.google.com/maps/dir/?api=1" +
+        "&destination=" + destino +
+        "&travelmode=driving";
+
+      window.location.href = url;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 8000,
+      maximumAge: 0
+    }
+  );
+}
 </script>
-
-
-
-
-
-
 
 </body>
 </html>

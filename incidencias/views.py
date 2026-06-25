@@ -6,7 +6,7 @@ from datetime import date
 
 from usuarios.models import Usuario
 from incidencias.models import BoleteroCajero
-from .models import Incidencia, Cliente, OrdenAtencion, Zona, CoordenadaZona
+from .models import Incidencia, Cliente, OrdenAtencion, Zona, CoordenadaZona, TecnicoZona
 import pytz
 
 
@@ -141,7 +141,9 @@ def registrar_orden_atencion(request):
             lat_cliente = float(latitud)
             lon_cliente = float(longitud)
 
-            zonas = Zona.objects.all()
+            zonas_coincidentes = []
+
+            zonas = Zona.objects.filter(activo=True)
 
             for zona in zonas:
                 puntos = CoordenadaZona.objects.filter(
@@ -153,11 +155,42 @@ def registrar_orden_atencion(request):
                     for p in puntos
                 ]
 
-                if len(poligono) >= 3:
-                    if punto_en_poligono(lat_cliente, lon_cliente, poligono):
-                        zona_asignada = zona
-                        tecnico_asignado = zona.id_tecnico
-                        break
+                if len(poligono) >= 3 and punto_en_poligono(lat_cliente, lon_cliente, poligono):
+                    zonas_coincidentes.append(zona)
+
+            turno_actual = obtener_turno_actual()
+
+            if zonas_coincidentes and turno_actual:
+                asignaciones = (
+                    TecnicoZona.objects
+                    .select_related("id_tecnico", "id_zona")
+                    .filter(
+                        id_zona__in=zonas_coincidentes,
+                        id_tecnico__turno=turno_actual,
+                        activo=True
+                    )
+                )
+
+                mejor_asignacion = None
+                menor_carga = None
+
+                for asignacion in asignaciones:
+                    tecnico = asignacion.id_tecnico
+
+                    pendientes = OrdenAtencion.objects.filter(
+                        id_tecnico=tecnico,
+                        estado="por_atender"
+                    ).count()
+
+                    if menor_carga is None or pendientes < menor_carga:
+                        menor_carga = pendientes
+                        mejor_asignacion = asignacion
+
+                if mejor_asignacion:
+                    tecnico_asignado = mejor_asignacion.id_tecnico
+                    zona_asignada = mejor_asignacion.id_zona
+                else:
+                    zona_asignada = zonas_coincidentes[0]
 
         OrdenAtencion.objects.create(
             id_cliente=cliente,
@@ -172,3 +205,12 @@ def registrar_orden_atencion(request):
 
 
 
+def obtener_turno_actual():
+    hora = timezone.now().astimezone(peru_tz).hour
+
+    # De 22:00 hasta antes de las 14:00
+    if hora >= 22 or hora < 14:
+        return "mañana"
+
+    # De 14:00 hasta antes de las 22:00
+    return "tarde"

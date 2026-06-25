@@ -152,6 +152,7 @@ class Tecnico(models.Model):
     id_tecnico = models.AutoField(primary_key=True)
     id_usuario = models.ForeignKey('usuarios.Usuario', models.DO_NOTHING, db_column='id_usuario')
     celular = models.CharField(max_length=20, blank=True, null=True)
+    turno = models.CharField(max_length=50, blank=True, null=True)
     latitud_actual = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
     longitud_actual = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
     ultima_actualizacion_ubicacion = models.DateTimeField(blank=True, null=True)
@@ -167,8 +168,9 @@ class Tecnico(models.Model):
 class Zona(models.Model):
     id_zona = models.AutoField(primary_key=True)
     nombre_zona = models.CharField(max_length=100)
-    id_tecnico = models.ForeignKey(Tecnico, models.DO_NOTHING, db_column='id_tecnico')
+    id_tecnico = models.ForeignKey(Tecnico, models.DO_NOTHING, db_column='id_tecnico', blank=True, null=True)
     fecha_creacion = models.DateTimeField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
 
     class Meta:
         managed = False
@@ -225,3 +227,17 @@ class OrdenAtencion(models.Model):
     class Meta:
         managed = False
         db_table = 'ordenes_atencion'
+        
+        
+        
+
+class TecnicoZona(models.Model):
+    id_tecnico_zona = models.AutoField(primary_key=True)
+    id_tecnico = models.ForeignKey(Tecnico, models.DO_NOTHING, db_column='id_tecnico')
+    id_zona = models.ForeignKey(Zona, models.DO_NOTHING, db_column='id_zona')
+    fecha_asignacion = models.DateTimeField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = 'tecnico_zona'

@@ -62,6 +62,57 @@ urlpatterns = [
     views.panel_tecnico,
     name="panel_tecnico"
     ),
+    
+    path(
+    "panel/tecnico/atender/",
+    views.atender_orden_tecnico,
+    name="atender_orden_tecnico"
+    ),
+    
+    path(
+    "panel/tecnicos/asignar-zona/",
+    views.guardar_asignacion_zona,
+    name="guardar_asignacion_zona"
+    ),
+    
+    path("panel/zonas/", views.panel_zonas, name="panel_zonas"),
+    
+    path(
+    "panel/zonas/nueva/",
+    views.crear_zona,
+    name="crear_zona"
+    ),
+    
+    path(
+    "panel/zonas/guardar/",
+    views.guardar_zona,
+    name="guardar_zona"
+    ),
+    
+    
+    path(
+    "panel/zonas/<int:id_zona>/ver/",
+    views.ver_zona,
+    name="ver_zona"
+    ),
+
+    path(
+        "panel/zonas/<int:id_zona>/editar/",
+        views.editar_zona,
+        name="editar_zona"
+    ),
+
+    path(
+        "panel/zonas/<int:id_zona>/actualizar/",
+        views.actualizar_zona,
+        name="actualizar_zona"
+    ),
+    
+    path(
+    "panel/tecnicos/<int:id_tecnico>/zonas/ver/",
+    views.ver_zonas_tecnico,
+    name="ver_zonas_tecnico"
+    ),
 ]
 
 if settings.DEBUG:
