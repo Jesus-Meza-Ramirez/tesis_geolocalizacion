@@ -1,7 +1,7 @@
 import io
 import json
 
-from datetime import date
+from datetime import date, datetime
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.core.paginator import Paginator, EmptyPage
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.http import JsonResponse
-
+from openpyxl.utils import get_column_letter
 from openpyxl import Workbook
 
 from usuarios.models import Usuario
@@ -104,23 +104,52 @@ def panel_control_interno(request):
     if maybe_redirect:
         return maybe_redirect
 
-    # ==========================
-    # Base Query: órdenes de atención
-    # ==========================
+    f_asig_desde = request.GET.get("f_asig_desde", "")
+    f_asig_hasta = request.GET.get("f_asig_hasta", "")
+    f_aten_desde = request.GET.get("f_aten_desde", "")
+    f_aten_hasta = request.GET.get("f_aten_hasta", "")
+    estado = request.GET.get("estado", "")
+    tecnico_selected = request.GET.get("tecnico", "")
+    zona_selected = request.GET.get("zona", "")
+    codigo_cliente = request.GET.get("codigo_cliente", "")
+
     qs = (
         OrdenAtencion.objects
-        .select_related("id_cliente", "id_tecnico", "id_zona")
+        .select_related(
+            "id_cliente",
+            "id_tecnico",
+            "id_tecnico__id_usuario",
+            "id_zona"
+        )
         .order_by("-fecha_asignacion", "-id_orden")
     )
 
-    # ==========================
-    # LIMIT TOP 100
-    # ==========================
+    if f_asig_desde:
+        qs = qs.filter(fecha_asignacion__date__gte=f_asig_desde)
+
+    if f_asig_hasta:
+        qs = qs.filter(fecha_asignacion__date__lte=f_asig_hasta)
+
+    if f_aten_desde:
+        qs = qs.filter(fecha_atencion__date__gte=f_aten_desde)
+
+    if f_aten_hasta:
+        qs = qs.filter(fecha_atencion__date__lte=f_aten_hasta)
+
+    if estado:
+        qs = qs.filter(estado=estado)
+
+    if tecnico_selected:
+        qs = qs.filter(id_tecnico_id=tecnico_selected)
+
+    if zona_selected:
+        qs = qs.filter(id_zona_id=zona_selected)
+
+    if codigo_cliente:
+        qs = qs.filter(id_cliente__codigo_cliente__icontains=codigo_cliente)
+
     qs = qs[:100]
 
-    # ==========================
-    # Paginación
-    # ==========================
     paginator = Paginator(qs, 20)
     page_num = request.GET.get("page", 1)
 
@@ -129,9 +158,6 @@ def panel_control_interno(request):
     except:
         page_obj = paginator.page(1)
 
-    # ==========================
-    # Construcción de tabla rows
-    # ==========================
     rows = []
 
     for orden in page_obj.object_list:
@@ -146,12 +172,29 @@ def panel_control_interno(request):
             "celular": cliente.celular if cliente else "—",
             "direccion": cliente.direccion if cliente else "—",
             "distrito": cliente.distrito if cliente else "—",
-            "tecnico": tecnico.id_usuario.nombre if tecnico and tecnico.id_usuario else "Sin asignar",
+            "zona": orden.id_zona.nombre_zona if orden.id_zona else "Sin zona",
+
+            "tecnico": (
+                tecnico.id_usuario.nombre
+                if tecnico and tecnico.id_usuario
+                else "Sin asignar"
+            ),
+
+            "usuario_tecnico": (
+                tecnico.id_usuario.usuario_login
+                if tecnico and tecnico.id_usuario
+                else "—"
+            ),
+
             "estado": orden.estado,
             "indicaciones": orden.indicaciones or "—",
             "observacion_tecnico": orden.observacion_tecnico or "—",
             "fecha_atencion": orden.fecha_atencion,
         })
+
+    preserved = request.GET.urlencode()
+    if preserved:
+        preserved = "&" + preserved
 
     context = {
         "usuario_nombre": request.session.get("nombre", "Usuario"),
@@ -159,27 +202,22 @@ def panel_control_interno(request):
 
         "rows": rows,
         "page_obj": page_obj,
-        "preserved": "",
+        "preserved": preserved,
 
-        "f1": "",
-        "f2": "",
-        "r1": "",
-        "r2": "",
-        "terminal_selected": "",
-        "estado": "",
-        "usuario": "",
-        "motivo": "",
-        "ci": "",
+        "f_asig_desde": f_asig_desde,
+        "f_asig_hasta": f_asig_hasta,
+        "f_aten_desde": f_aten_desde,
+        "f_aten_hasta": f_aten_hasta,
+        "estado": estado,
+        "tecnico_selected": tecnico_selected,
+        "zona_selected": zona_selected,
+        "codigo_cliente": codigo_cliente,
 
-        "usuarios_ci": Usuario.objects.filter(rol="control_interno").order_by("nombre"),
-        "boleteros": BoleteroCajero.objects.filter(estado="activo").order_by("usuario"),
-        "terminales": Terminal.objects.all().order_by("id_terminal"),
-        "control_internos": Usuario.objects.filter(rol="control_interno"),
+        "zonas": Zona.objects.filter(activo=True).order_by("nombre_zona"),
+        "tecnicos": Tecnico.objects.select_related("id_usuario").order_by("id_usuario__nombre"),
     }
 
     return render(request, "control_interno_dashboard.html", context)
-
-
 
 # ============================
 #  PLACEHOLDERS (puedes cambiar luego)
@@ -522,185 +560,118 @@ def panel_admin_sistema(request):
 
 def exportar_incidencias_excel(request):
     """
-    Genera un archivo xlsx con las incidencias según filtros GET.
+    Exporta las órdenes de atención según los filtros actuales del dashboard.
     """
 
-    # ------- info de sesión (para producción hoy) -------
-    uid = request.session.get("uid")
-    produccion_hoy = request.GET.get("produccion_hoy")
+    f_asig_desde = request.GET.get("f_asig_desde", "")
+    f_asig_hasta = request.GET.get("f_asig_hasta", "")
+    f_aten_desde = request.GET.get("f_aten_desde", "")
+    f_aten_hasta = request.GET.get("f_aten_hasta", "")
+    estado = request.GET.get("estado", "")
+    tecnico_selected = request.GET.get("tecnico", "")
+    zona_selected = request.GET.get("zona", "")
+    codigo_cliente = request.GET.get("codigo_cliente", "")
 
-    # ------- Leer filtros GET (mismos nombres que en el dashboard) -------
-    f1 = request.GET.get("f1")    # fecha incidencia desde
-    f2 = request.GET.get("f2")    # fecha incidencia hasta
-    r1 = request.GET.get("r1")    # fecha revision desde
-    r2 = request.GET.get("r2")    # fecha revision hasta
-    terminal_filter = request.GET.get("terminal")
-    estado_filter = request.GET.get("estado")
-    usuario_filter = (request.GET.get("usuario") or "").strip()
-    motivo_filter  = (request.GET.get("motivo") or "").strip()
-    ci_filter      = (request.GET.get("ci") or "").strip()
-
-    # ------- Query base -------
     qs = (
-        Incidencia.objects
-        .select_related("id_bc", "id_usuario", "id_bc__id_terminal")
-        .order_by("-fecha_revision", "-id_incidencia")
+        OrdenAtencion.objects
+        .select_related(
+            "id_cliente",
+            "id_tecnico",
+            "id_tecnico__id_usuario",
+            "id_zona"
+        )
+        .order_by("-fecha_asignacion", "-id_orden")
     )
 
-    # ------- Aplicar filtros (igual que en panel_control_interno) -------
-    if f1 and f2:
-        try:
-            d1 = date.fromisoformat(f1)
-            d2 = date.fromisoformat(f2)
-            if d1 > d2:
-                d1, d2 = d2, d1
-            qs = qs.filter(fecha_incidencia__range=(d1, d2))
-        except ValueError:
-            pass
+    if f_asig_desde:
+        qs = qs.filter(fecha_asignacion__date__gte=f_asig_desde)
 
-    if r1 and r2:
-        try:
-            rd1 = date.fromisoformat(r1)
-            rd2 = date.fromisoformat(r2)
-            if rd1 > rd2:
-                rd1, rd2 = rd2, rd1
-            qs = qs.filter(fecha_revision__range=(rd1, rd2))
-        except ValueError:
-            pass
+    if f_asig_hasta:
+        qs = qs.filter(fecha_asignacion__date__lte=f_asig_hasta)
 
-    if terminal_filter:
-        qs = qs.filter(id_bc__id_terminal_id=terminal_filter)
+    if f_aten_desde:
+        qs = qs.filter(fecha_atencion__date__gte=f_aten_desde)
 
-    # 🔹 mismo criterio de estado que en el panel
-    if estado_filter:
-        estado_filter_norm = (estado_filter or "").lower().replace("ó", "o")
+    if f_aten_hasta:
+        qs = qs.filter(fecha_atencion__date__lte=f_aten_hasta)
 
-        if estado_filter_norm.startswith("observ"):
-            qs = qs.filter(estado__icontains="observ")
-        elif estado_filter_norm.startswith("pend"):
-            qs = qs.filter(estado__icontains="pendiente")
-        elif estado_filter_norm.startswith("resu"):
-            qs = qs.filter(estado__icontains="resuelto")
-        elif estado_filter_norm.startswith("conf"):
-            qs = qs.filter(estado__icontains="conforme")
+    if estado:
+        qs = qs.filter(estado=estado)
 
-    if usuario_filter:
-        qs = qs.filter(
-            Q(id_bc__nombre__icontains=usuario_filter) |
-            Q(id_bc__usuario__icontains=usuario_filter)
-        )
+    if tecnico_selected:
+        qs = qs.filter(id_tecnico_id=tecnico_selected)
 
-    if motivo_filter:
-        qs = qs.filter(motivo__icontains=motivo_filter)
+    if zona_selected:
+        qs = qs.filter(id_zona_id=zona_selected)
 
-    if ci_filter:
-        qs = qs.filter(id_usuario__usuario_login__icontains=ci_filter)
-        
+    if codigo_cliente:
+        qs = qs.filter(id_cliente__codigo_cliente__icontains=codigo_cliente)
 
-    # 🎯 FILTRO: Producción hoy
-    if produccion_hoy:
-        today = timezone.localdate()
-
-        rol = (request.session.get("rol") or "").lower()
-
-        # Si es CONTROL INTERNO: solo lo suyo
-        if rol == "control_interno" and uid:
-            qs = qs.filter(id_usuario_id=uid, fecha_revision=today)
-
-        # Si es ADMIN/otros paneles: todo lo de hoy
-        else:
-            qs = qs.filter(fecha_revision=today)
-
-
-    # Limitar filas
-    MAX_ROWS = 5000
-    qs = qs[:MAX_ROWS]
-
-    # ------- Construir workbook -------
     wb = Workbook()
     ws = wb.active
-    ws.title = "Incidencias"
+    ws.title = "Ordenes de atencion"
 
-    # 👇 NUEVOS HEADERS (sin evidencia, pero con respuesta y fecha respuesta)
     headers = [
-        "Fecha de incidencia",
-        "Nombre (boletero/cajero)",
-        "Usuario",
-        "Cargo",
-        "Terminal",
-        "Control interno",
+        "Fecha asignación",
+        "Hora asignación",
+        "Código cliente",
+        "Cliente",
+        "Celular",
+        "Dirección",
+        "Distrito",
+        "Zona",
+        "Técnico",
+        "Usuario técnico",
         "Estado",
-        "Motivo",
-        "Fecha de revisión",
-        "Respuesta administrador",
-        "Fecha soluciòn",
+        "Indicaciones",
+        "Fecha atención",
+        "Hora atención",
+        "Observación técnico",
     ]
+
     ws.append(headers)
 
-    # rellenar filas
-    for inc in qs:
-        bc = getattr(inc, "id_bc", None)
-        bc_nombre  = getattr(bc, "nombre", "")  if bc else ""
-        bc_usuario = getattr(bc, "usuario", "") if bc else ""
-        bc_cargo   = getattr(bc, "cargo", "")   if bc else ""
-        term_obj   = getattr(bc, "id_terminal", None)
-        terminal_name = getattr(term_obj, "nombre_terminal", "") if term_obj else (
-            getattr(bc, "id_terminal", "") if bc else ""
-        )
+    for orden in qs:
+        cliente = orden.id_cliente
+        tecnico = orden.id_tecnico
 
-        control_interno = getattr(inc, "id_usuario", None)
-        control_interno_name = getattr(control_interno, "nombre", "") if control_interno else ""
+        fecha_asig = orden.fecha_asignacion
+        fecha_aten = orden.fecha_atencion
 
-        # normalizar estado = igual que en el panel
-        estado_val = (getattr(inc, "estado", "") or "").lower().replace("ó", "o")
-        if estado_val.startswith("observ"):
-            estado_text = "Observado"
-        elif estado_val.startswith("pend"):
-            estado_text = "Pendiente"
-        elif estado_val.startswith("resu"):
-            estado_text = "Resuelto"
-        else:
-            estado_text = "Conforme"
+        ws.append([
+            fecha_asig.strftime("%d-%m-%Y") if fecha_asig else "",
+            fecha_asig.strftime("%H:%M") if fecha_asig else "",
+            cliente.codigo_cliente if cliente else "",
+            cliente.nombre_cliente if cliente else "",
+            cliente.celular if cliente else "",
+            cliente.direccion if cliente else "",
+            cliente.distrito if cliente else "",
+            orden.id_zona.nombre_zona if orden.id_zona else "Sin zona",
+            tecnico.id_usuario.nombre if tecnico and tecnico.id_usuario else "Sin asignar",
+            tecnico.id_usuario.usuario_login if tecnico and tecnico.id_usuario else "",
+            "Por atender" if orden.estado == "por_atender" else "Atendido" if orden.estado == "atendido" else orden.estado,
+            orden.indicaciones or "",
+            fecha_aten.strftime("%d-%m-%Y") if fecha_aten else "",
+            fecha_aten.strftime("%H:%M") if fecha_aten else "",
+            orden.observacion_tecnico or "",
+        ])
 
-        motivo = getattr(inc, "motivo", "") or ""
+    column_widths = [18, 15, 18, 30, 15, 40, 20, 25, 30, 20, 15, 35, 18, 15, 35]
 
-        fecha_incid = getattr(inc, "fecha_incidencia", None)
-        fecha_rev   = getattr(inc, "fecha_revision", None)
-
-        # 👇 NUEVOS CAMPOS
-        solucion_admin = getattr(inc, "solucion_admin", "") or ""
-        fecha_resp_obj = getattr(inc, "fecha_solucion", None)  
-
-        row = [
-            fecha_incid.isoformat() if fecha_incid else "",
-            bc_nombre,
-            bc_usuario,
-            bc_cargo,
-            terminal_name,
-            control_interno_name,
-            estado_text,
-            motivo,
-            fecha_rev.isoformat() if fecha_rev else "",
-            solucion_admin,
-            fecha_resp_obj.isoformat() if fecha_resp_obj else "",
-        ]
-        ws.append(row)
-
-    # Ajustar anchos (11 columnas ahora)
-    column_widths = [18, 30, 15, 12, 14, 22, 12, 40, 18, 40, 22]
     for i, width in enumerate(column_widths, start=1):
-        ws.column_dimensions[chr(64 + i)].width = width
+        ws.column_dimensions[get_column_letter(i)].width = width
 
-    # Guardar workbook en memoria y devolver
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
 
-    filename = "incidencias_export.xlsx"
+    filename = "ordenes_atencion_export.xlsx"
+
     response = HttpResponse(
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
@@ -1244,16 +1215,26 @@ def panel_tecnico(request):
 
 @require_POST
 def atender_orden_tecnico(request):
-
     id_orden = request.POST.get("id_orden")
-    observacion = request.POST.get("observacion_tecnico")
+    observacion = request.POST.get("observacion_tecnico", "").strip()
+
+    fecha_manual = request.POST.get("fecha_atencion_manual", "").strip()
+    hora_manual = request.POST.get("hora_atencion_manual", "").strip()
 
     orden = OrdenAtencion.objects.get(pk=id_orden)
 
+    fecha_atencion_final = datetime.now()
+
+    if fecha_manual and hora_manual:
+        fecha_hora_str = f"{fecha_manual} {hora_manual}"
+        fecha_atencion_final = datetime.strptime(
+            fecha_hora_str,
+            "%Y-%m-%d %H:%M"
+        )
+
     orden.estado = "atendido"
     orden.observacion_tecnico = observacion
-    orden.fecha_atencion = timezone.now()
-
+    orden.fecha_atencion = fecha_atencion_final
     orden.save()
 
     return redirect("panel_tecnico")
@@ -1525,3 +1506,118 @@ def ver_zonas_tecnico(request, id_tecnico):
     }
 
     return render(request, 'ver_zonas_tecnico.html', context)
+
+
+
+
+
+
+
+
+
+def panel_ordenes_admin(request):
+    maybe_redirect = _require_session(request)
+    if maybe_redirect:
+        return maybe_redirect
+
+    f_asig_desde = request.GET.get("f_asig_desde", "")
+    f_asig_hasta = request.GET.get("f_asig_hasta", "")
+    f_aten_desde = request.GET.get("f_aten_desde", "")
+    f_aten_hasta = request.GET.get("f_aten_hasta", "")
+    estado = request.GET.get("estado", "")
+    tecnico_selected = request.GET.get("tecnico", "")
+    zona_selected = request.GET.get("zona", "")
+    codigo_cliente = request.GET.get("codigo_cliente", "")
+
+    qs = (
+        OrdenAtencion.objects
+        .select_related(
+            "id_cliente",
+            "id_tecnico",
+            "id_tecnico__id_usuario",
+            "id_zona"
+        )
+        .order_by("-fecha_asignacion", "-id_orden")
+    )
+
+    if f_asig_desde:
+        qs = qs.filter(fecha_asignacion__date__gte=f_asig_desde)
+
+    if f_asig_hasta:
+        qs = qs.filter(fecha_asignacion__date__lte=f_asig_hasta)
+
+    if f_aten_desde:
+        qs = qs.filter(fecha_atencion__date__gte=f_aten_desde)
+
+    if f_aten_hasta:
+        qs = qs.filter(fecha_atencion__date__lte=f_aten_hasta)
+
+    if estado:
+        qs = qs.filter(estado=estado)
+
+    if tecnico_selected:
+        qs = qs.filter(id_tecnico_id=tecnico_selected)
+
+    if zona_selected:
+        qs = qs.filter(id_zona_id=zona_selected)
+
+    if codigo_cliente:
+        qs = qs.filter(id_cliente__codigo_cliente__icontains=codigo_cliente)
+
+    qs = qs[:100]
+
+    paginator = Paginator(qs, 20)
+    page_num = request.GET.get("page", 1)
+
+    try:
+        page_obj = paginator.page(page_num)
+    except:
+        page_obj = paginator.page(1)
+
+    rows = []
+
+    for orden in page_obj.object_list:
+        cliente = orden.id_cliente
+        tecnico = orden.id_tecnico
+
+        rows.append({
+            "id_orden": orden.id_orden,
+            "fecha_asignacion": orden.fecha_asignacion,
+            "codigo_cliente": cliente.codigo_cliente if cliente else "—",
+            "cliente": cliente.nombre_cliente if cliente else "—",
+            "celular": cliente.celular if cliente else "—",
+            "direccion": cliente.direccion if cliente else "—",
+            "distrito": cliente.distrito if cliente else "—",
+            "zona": orden.id_zona.nombre_zona if orden.id_zona else "Sin zona",
+            "tecnico": tecnico.id_usuario.nombre if tecnico and tecnico.id_usuario else "Sin asignar",
+            "usuario_tecnico": tecnico.id_usuario.usuario_login if tecnico and tecnico.id_usuario else "—",
+            "estado": orden.estado,
+            "indicaciones": orden.indicaciones or "—",
+            "observacion_tecnico": orden.observacion_tecnico or "—",
+            "fecha_atencion": orden.fecha_atencion,
+        })
+
+    preserved = request.GET.urlencode()
+    if preserved:
+        preserved = "&" + preserved
+
+    context = {
+        "usuario_nombre": request.session.get("nombre", "Usuario"),
+        "rows": rows,
+        "page_obj": page_obj,
+        "preserved": preserved,
+
+        "f_asig_desde": f_asig_desde,
+        "f_asig_hasta": f_asig_hasta,
+        "f_aten_desde": f_aten_desde,
+        "f_aten_hasta": f_aten_hasta,
+        "estado": estado,
+        "tecnico_selected": tecnico_selected,
+        "zona_selected": zona_selected,
+        "codigo_cliente": codigo_cliente,
+
+        "zonas": Zona.objects.filter(activo=True).order_by("nombre_zona"),
+        "tecnicos": Tecnico.objects.select_related("id_usuario").order_by("id_usuario__nombre"),
+    }
+
+    return render(request, "admin_ordenes_dashboard.html", context)

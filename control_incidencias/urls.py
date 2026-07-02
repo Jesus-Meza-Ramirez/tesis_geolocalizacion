@@ -113,6 +113,12 @@ urlpatterns = [
     views.ver_zonas_tecnico,
     name="ver_zonas_tecnico"
     ),
+    
+    path(
+    "panel/admin-sistema/ordenes/",
+    views.panel_ordenes_admin,
+    name="panel_ordenes_admin"
+    ),
 ]
 
 if settings.DEBUG:

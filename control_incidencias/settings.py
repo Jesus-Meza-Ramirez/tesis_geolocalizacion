@@ -29,7 +29,8 @@ else:
         "localhost",
         "127.0.0.1",
         "IP_DEL_SERVIDOR",  # <- reemplaza por tu IP pública o usa DJANGO_ALLOWED_HOSTS
-        "192.168.18.3"
+        "192.168.18.3",
+        ".ngrok-free.dev",
         # "tu_dominio.com",
         # "www.tu_dominio.com",
     ]

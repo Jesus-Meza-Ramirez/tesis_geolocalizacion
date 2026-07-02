@@ -2,7 +2,7 @@
 
 from django.shortcuts import render, redirect
 from django.utils import timezone
-from datetime import date
+from datetime import date, datetime
 
 from usuarios.models import Usuario
 from incidencias.models import BoleteroCajero
@@ -96,6 +96,7 @@ def registrar_orden_atencion(request):
     Si el cliente no existe, lo crea.
     Si ya existe, actualiza sus datos.
     Además, asigna automáticamente técnico y zona según latitud/longitud.
+    Para pruebas permite ingresar fecha y hora manual de asignación.
     """
     if request.method == "POST":
         codigo_cliente = request.POST.get("codigo_cliente", "").strip()
@@ -106,8 +107,20 @@ def registrar_orden_atencion(request):
         departamento = request.POST.get("departamento", "").strip()
         indicaciones = request.POST.get("indicaciones", "").strip()
 
+        fecha_manual = request.POST.get("fecha_asignacion_manual", "").strip()
+        hora_manual = request.POST.get("hora_asignacion_manual", "").strip()
+
         latitud = request.POST.get("latitud") or None
         longitud = request.POST.get("longitud") or None
+
+        fecha_asignacion_final = datetime.now()
+
+        if fecha_manual and hora_manual:
+            fecha_hora_str = f"{fecha_manual} {hora_manual}"
+            fecha_asignacion_final = datetime.strptime(
+                fecha_hora_str,
+                "%Y-%m-%d %H:%M"
+            )
 
         cliente, creado = Cliente.objects.get_or_create(
             codigo_cliente=codigo_cliente,
@@ -158,7 +171,7 @@ def registrar_orden_atencion(request):
                 if len(poligono) >= 3 and punto_en_poligono(lat_cliente, lon_cliente, poligono):
                     zonas_coincidentes.append(zona)
 
-            turno_actual = obtener_turno_actual()
+            turno_actual = obtener_turno_por_fecha(fecha_asignacion_final)
 
             if zonas_coincidentes and turno_actual:
                 asignaciones = (
@@ -198,19 +211,18 @@ def registrar_orden_atencion(request):
             id_zona=zona_asignada,
             estado="por_atender",
             indicaciones=indicaciones,
-            fecha_asignacion=timezone.now()
+            fecha_asignacion=fecha_asignacion_final
         )
 
         return redirect("panel_control_interno")
 
 
+def obtener_turno_por_fecha(fecha_hora):
+    hora = fecha_hora.hour
 
-def obtener_turno_actual():
-    hora = timezone.now().astimezone(peru_tz).hour
-
-    # De 22:00 hasta antes de las 14:00
+    # 22:00 hasta 13:59 -> turno mañana
     if hora >= 22 or hora < 14:
         return "mañana"
 
-    # De 14:00 hasta antes de las 22:00
+    # 14:00 hasta 21:59 -> turno tarde
     return "tarde"

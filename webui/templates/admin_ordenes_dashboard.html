@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Panel | Coordinador</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
+    {% load static %}
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet"
+      href="https://unpkg.com/leaflet/dist/leaflet.css">
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+    <div class="brand">NECOMPLUS</div>
+    <ul class="menu">
+        <li><a href="{% url 'panel_admin_sistema' %}">Panel Principal</a></li>
+        <li><a href="{% url 'panel_boleteros' %}">Gestión de Técnicos</a></li>
+        <li><a href="{% url 'panel_zonas' %}">Gestión de Zonas</a></li>
+        <li><a href="{% url 'panel_ordenes_admin' %}">Órdenes</a></li>
+        <li><a href="{% url 'logout' %}">Cerrar sesión</a></li>
+    </ul>
+    </aside>
+
+    <!-- Main content -->
+    <section class="main">
+      <div class="page-title">Sistema de Gestión de Técnicos con Geolocalización</div>
+          <button class="hamburger" id="btnMenu">
+              ☰
+          </button>
+      <p class="hello">Administrador del sistema — Órdenes de atención</p>
+
+    <!-- === FILTROS DE BUSQUEDA === -->
+    <form method="get" class="filters">
+      <h3 class="filters__title">Filtros de órdenes</h3>
+
+      <div class="filters__grid">
+
+        <div class="filters__card filters__card--blue">
+          <label class="filters__label filters__label--blue">📅 Fecha de asignación</label>
+
+          <div class="filters__row">
+            <div class="filters__field">
+              <label class="filters__small">Desde</label>
+              <input type="date" name="f_asig_desde" value="{{ f_asig_desde }}" class="filters__input filters__input--date">
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Hasta</label>
+              <input type="date" name="f_asig_hasta" value="{{ f_asig_hasta }}" class="filters__input filters__input--date">
+            </div>
+          </div>
+        </div>
+
+        <div class="filters__card filters__card--green">
+          <label class="filters__label filters__label--green">📋 Fecha de atención</label>
+
+          <div class="filters__row">
+            <div class="filters__field">
+              <label class="filters__small">Desde</label>
+              <input type="date" name="f_aten_desde" value="{{ f_aten_desde }}" class="filters__input filters__input--date">
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Hasta</label>
+              <input type="date" name="f_aten_hasta" value="{{ f_aten_hasta }}" class="filters__input filters__input--date">
+            </div>
+          </div>
+        </div>
+
+        <div class="filters__card filters__card--white">
+          <label class="filters__label filters__label--dark">🔎 Otros filtros</label>
+
+          <div class="filters__row filters__row--wrap">
+
+            <div class="filters__field">
+              <label class="filters__small">Estado</label>
+              <select name="estado" class="filters__select">
+                <option value="">Todos</option>
+                <option value="por_atender" {% if estado == "por_atender" %}selected{% endif %}>Por atender</option>
+                <option value="atendido" {% if estado == "atendido" %}selected{% endif %}>Atendido</option>
+              </select>
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Técnico</label>
+              <select name="tecnico" class="filters__select">
+                <option value="">Todos</option>
+                {% for t in tecnicos %}
+                  <option value="{{ t.id_tecnico }}" {% if tecnico_selected == t.id_tecnico|stringformat:"s" %}selected{% endif %}>
+                    {{ t.id_usuario.nombre }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Zona</label>
+              <select name="zona" class="filters__select">
+                <option value="">Todas</option>
+                {% for z in zonas %}
+                  <option value="{{ z.id_zona }}" {% if zona_selected == z.id_zona|stringformat:"s" %}selected{% endif %}>
+                    {{ z.nombre_zona }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Código cliente</label>
+              <input type="text" name="codigo_cliente" value="{{ codigo_cliente }}" placeholder="Ej: CL001" class="filters__input">
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div style="margin-top:18px; display:flex; gap:12px;">
+        <button type="submit" class="btn-filtrar">Filtrar</button>
+
+        <a href="{% url 'panel_control_interno' %}" class="btn-limpiar">
+          Limpiar
+        </a>
+
+        <a href="{% url 'export_excel' %}?{{ request.GET.urlencode }}" class="btn-excel">
+          Exportar Excel
+        </a>
+      </div>
+    </form>
+
+      <!-- TABLA -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha Asignación</th>
+              <th>Hora Asignación</th>
+              <th>Código Cliente</th>
+              <th>Cliente</th>
+              <th>Celular</th>
+              <th>Dirección</th>
+              <th>Distrito</th>
+              <th>Técnico</th>
+              <th>Usuario Técnico</th>
+              <th>Estado</th>
+              <th>Indicaciones</th>
+              <th>Fecha Atención</th>
+              <th>Hora Atención</th>
+              <th>Observación Técnico</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td>{{ r.fecha_asignacion|date:"d-m-Y" }}</td>
+              <td>{{ r.fecha_asignacion|date:"H:i" }}</td>
+              <td>{{ r.codigo_cliente }}</td>
+              <td>{{ r.cliente }}</td>
+              <td>{{ r.celular }}</td>
+              <td>{{ r.direccion }}</td>
+              <td>{{ r.distrito }}</td>
+              <td>{{ r.tecnico|default:"Sin asignar" }}</td>
+              <td>{{ r.usuario_tecnico }}</td>
+              <td>
+                {% if r.estado == "por_atender" %}
+                  <span class="badge warn">Por atender</span>
+                {% elif r.estado == "atendido" %}
+                  <span class="badge done">Atendido</span>
+                {% else %}
+                  <span class="badge pending">{{ r.estado }}</span>
+                {% endif %}
+              </td>
+
+              <td>{{ r.indicaciones|default:"—" }}</td>
+              <td>
+                {% if r.fecha_atencion %}
+                  {{ r.fecha_atencion|date:"d-m-Y" }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td>
+                {% if r.fecha_atencion %}
+                  {{ r.fecha_atencion|date:"H:i" }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>{{ r.observacion_tecnico|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="9" style="text-align:center; color:#6b7280;">
+                No hay órdenes registradas
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PAGINACIÓN FUERA DEL SCROLL -->
+      {% if page_obj %}
+      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:10px;">
+        {% if page_obj.has_previous %}
+          <a href="?page=1{{ preserved }}">&laquo; Primero</a>
+          <a href="?page={{ page_obj.previous_page_number }}{{ preserved }}">Anterior</a>
+        {% endif %}
+
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}{{ preserved }}">Siguiente</a>
+          <a href="?page={{ page_obj.paginator.num_pages }}{{ preserved }}">Último &raquo;</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+
+
+  <script>
+  document.addEventListener("DOMContentLoaded", function () {
+
+    // --- abrir / cerrar modal registrar incidencia ---
+    const abrir  = document.getElementById("btnAbrirIncidencia");
+    const cerrar = document.getElementById("cerrarModal");
+    const modal  = document.getElementById("modalIncidencia");
+
+    // --- campos del modal: estado / motivo / evidencia ---
+    const estado    = document.getElementById("estadoIncidencia");
+    const motivo    = document.getElementById("motivoIncidencia");
+    const evidencia = document.getElementById("evidenciaIncidencia");
+
+    function actualizarCamposEstado() {
+      if (!estado || !motivo || !evidencia) return;
+
+      const value = (estado.value || "").toLowerCase();
+      const esObservado = value.startsWith("observ");
+
+      if (esObservado) {
+        motivo.disabled = false;
+        evidencia.disabled = false;
+        motivo.style.backgroundColor = "white";
+        evidencia.style.backgroundColor = "white";
+        motivo.style.cursor = "text";
+        evidencia.style.cursor = "pointer";
+      } else {
+        motivo.disabled = true;
+        evidencia.disabled = true;
+        motivo.value = "";
+        evidencia.value = "";
+        motivo.style.backgroundColor = "#e5e7eb";
+        evidencia.style.backgroundColor = "#e5e7eb";
+        motivo.style.cursor = "not-allowed";
+        evidencia.style.cursor = "not-allowed";
+      }
+    }
+
+    if (estado) {
+      actualizarCamposEstado();
+      estado.addEventListener("change", actualizarCamposEstado);
+    }
+
+    if (abrir && modal) {
+      abrir.addEventListener("click", function (e) {
+        e.preventDefault();
+        const form = modal.querySelector("form");
+        if (form) form.reset();
+        actualizarCamposEstado();
+        modal.style.display = "block";
+      });
+    }
+
+    if (cerrar && modal) {
+      cerrar.addEventListener("click", function () {
+        modal.style.display = "none";
+      });
+    }
+
+    // --- filtro Terminal -> Boletero/Cajero (modal) con AUTOCOMPLETE ---
+    const selTerminal = document.getElementById("terminalSelect");
+    const boleteroInput = document.getElementById("boleteroInput");
+    const boleteroId    = document.getElementById("boleteroId");
+    const datalist      = document.getElementById("boleterosList");
+
+    if (selTerminal && boleteroInput && boleteroId && datalist) {
+      const allOptions = Array.from(datalist.querySelectorAll("option"));
+
+      function filtrarPorTerminal() {
+        const terminalSeleccionada = selTerminal.value;
+
+        datalist.innerHTML = "";
+
+        allOptions.forEach(opt => {
+          if (terminalSeleccionada === "" || opt.dataset.terminal === terminalSeleccionada) {
+            datalist.appendChild(opt);
+          }
+        });
+
+        boleteroInput.value = "";
+        boleteroId.value = "";
+      }
+
+      selTerminal.addEventListener("change", filtrarPorTerminal);
+
+      boleteroInput.addEventListener("input", () => {
+        const val = (boleteroInput.value || "").trim().toLowerCase();
+        const match = allOptions.find(opt => (opt.value || "").trim().toLowerCase() === val);
+
+        boleteroId.value = match ? match.dataset.id : "";
+      });
+
+      filtrarPorTerminal();
+    }
+  });
+  </script>
+
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    /* ===========================
+      FILTROS TERMINAL / USUARIO
+      =========================== */
+    const selTerminal = document.getElementById("filtroTerminal");
+    const selUsuario  = document.getElementById("filtroUsuario");
+
+    if (selTerminal && selUsuario) {
+      const allUsuarios = Array.from(selUsuario.querySelectorAll("option[data-terminal]"));
+
+      selTerminal.addEventListener("change", () => {
+        const term = selTerminal.value;
+        const selectedUser = selUsuario.value;
+
+        selUsuario.querySelectorAll("option[data-terminal]").forEach(op => op.remove());
+
+        allUsuarios.forEach(op => {
+          if (term === "" || op.dataset.terminal === term) {
+            selUsuario.appendChild(op);
+          }
+        });
+
+        if (selectedUser && selUsuario.querySelector(`option[value="${selectedUser}"]`)) {
+          selUsuario.value = selectedUser;
+        } else {
+          selUsuario.value = "";
+        }
+      });
+
+      selUsuario.addEventListener("change", () => {
+        const selectedUser = selUsuario.value;
+        const userOpt = selUsuario.selectedOptions[0];
+        if (!userOpt || !userOpt.dataset.terminal) return;
+
+        const terminalId = userOpt.dataset.terminal;
+
+        selTerminal.value = terminalId;
+        selTerminal.dispatchEvent(new Event("change"));
+        selUsuario.value = selectedUser;
+      });
+    }
+
+    /* ===========================
+      MODAL "VER RESPUESTA"
+      =========================== */
+    const modal = document.getElementById('modalRespuesta');
+    const closeBtn = document.getElementById('cerrarModalRespuesta');
+    const textoRespuesta = document.getElementById('textoRespuesta');
+    const zonaEvidencia = document.getElementById('zonaEvidenciaRespuesta');
+    const fechaSpan = document.getElementById('fechaRespuesta');
+    const idField = document.getElementById('idIncidenciaEstado');
+
+    document.querySelectorAll('.btn-respuesta').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const texto = btn.dataset.respuesta || '—';
+        const evidencia = btn.dataset.evidencia || '';
+        const id = btn.dataset.id || '';
+        const fecha = btn.dataset.fechaRespuesta || '—';
+
+        if (textoRespuesta) textoRespuesta.textContent = texto;
+        if (idField) idField.value = id;
+        if (fechaSpan) fechaSpan.textContent = fecha;
+
+        if (zonaEvidencia) {
+          if (evidencia) {
+            zonaEvidencia.innerHTML =
+              `<a href="${evidencia}" target="_blank" rel="noopener">Ver archivo</a>`;
+          } else {
+            zonaEvidencia.textContent = "—";
+          }
+        }
+
+        if (modal) modal.style.display = "flex";
+      });
+    });
+
+    if (closeBtn && modal) {
+      closeBtn.addEventListener('click', () => { modal.style.display = "none"; });
+    }
+
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = "none";
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+        modal.style.display = 'none';
+      }
+    });
+  });
+  </script>
+
+  <script>
+    const btnMenu = document.getElementById('btnMenu');
+    const sidebar = document.querySelector('.sidebar');
+
+    btnMenu.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+  </script>
+
+
+  <!-- MODAL PARA REGISTRAR ORDEN -->
+  <div id="modalIncidencia"
+      style="
+          display:none;
+          position: fixed;
+          top: 0; left: 0;
+          width: 100%; height: 100%;
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(2px);
+          z-index: 9999;
+          padding-top: 80px;
+      ">
+    <div style="
+        background: white;
+        width: 480px;
+        max-width: 95%;
+        margin: auto;
+        padding: 24px;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        position: relative;
+        font-size: 14px;
+    ">
+      <h2 style="margin-top:0; color:#e68613; font-size:22px;">Registrar orden de Atenciòn</h2>
+
+      <span id="cerrarModal"
+            style="
+              position:absolute;
+              top:10px; right:12px;
+              cursor:pointer;
+              font-weight:bold;
+              color:#444;
+              font-size:18px;
+            ">✖</span>
+
+      <form method="post" action="{% url 'registrar_orden_atencion' %}">
+        {% csrf_token %}
+
+        <label for="codigoCliente">Código del cliente:</label>
+        <input type="text" id="codigoCliente" name="codigo_cliente"
+              placeholder="Ejemplo: CL001" required
+              style="width:100%; margin-bottom:10px;">
+
+        <label for="nombreCliente">Nombre del cliente:</label>
+        <input type="text" id="nombreCliente" name="nombre_cliente"
+              placeholder="Nombre del cliente" required
+              style="width:100%; margin-bottom:10px;">
+
+        <label for="celularCliente">Celular:</label>
+        <input type="text" id="celularCliente" name="celular"
+              placeholder="Número de celular"
+              style="width:100%; margin-bottom:10px;">
+
+        <label for="direccionCliente">Dirección:</label>
+        <input type="text" id="direccionCliente" name="direccion"
+              placeholder="Dirección del cliente" required
+              style="width:100%; margin-bottom:10px;">
+        
+        
+
+
+
+
+
+              <button type="button"
+                      onclick="buscarDireccion()"
+                      style="margin-bottom:10px; padding:8px 12px;">
+                  Buscar ubicación
+              </button>
+
+              <div id="mapaCliente"
+                  style="height:300px; width:100%; margin-bottom:10px;">
+              </div>
+
+              <input type="hidden" id="latitud" name="latitud">
+              <input type="hidden" id="longitud" name="longitud">
+        
+
+
+
+        <label for="distritoCliente">Distrito:</label>
+        <input type="text" id="distritoCliente" name="distrito"
+              placeholder="Distrito"
+              style="width:100%; margin-bottom:10px;">
+
+
+
+        <label for="departamentoCliente">Departamento:</label>
+
+        
+
+        <label>Fecha de asignación:</label>
+        <input type="date" name="fecha_asignacion_manual" id="fechaAsignacionManual">
+
+        <label>Hora de asignación:</label>
+        <input type="time" name="hora_asignacion_manual" id="horaAsignacionManual">
+
+
+
+
+        <input type="text"
+              id="departamentoCliente"
+              name="departamento"
+              placeholder="Ejemplo: Lima"
+              style="width:100%; margin-bottom:10px;">
+        
+
+
+
+
+
+        <label for="indicacionesOrden">Indicaciones:</label>
+        <textarea id="indicacionesOrden" name="indicaciones"
+                  placeholder="Ingrese indicaciones para el técnico"
+                  style="width:100%; height:90px; margin-bottom:10px;"></textarea>
+
+        <button type="submit"
+          style="margin-top:5px; width:100%; padding:10px; background:#e68613; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+          Guardar orden de atención
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+
+
+</body>
+
+<script>
+
+let mapaCliente = null;
+let marcadorCliente = null;
+
+function inicializarMapaCliente() {
+
+    if (mapaCliente) {
+        setTimeout(() => {
+            mapaCliente.invalidateSize();
+        }, 200);
+        return;
+    }
+
+    mapaCliente = L.map("mapaCliente")
+        .setView([-12.0464, -77.0428], 12);
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution: "&copy; OpenStreetMap"
+        }
+    ).addTo(mapaCliente);
+
+    setTimeout(() => {
+        mapaCliente.invalidateSize();
+    }, 200);
+}
+
+async function buscarDireccion() {
+
+    const direccion = document.getElementById("direccionCliente").value.trim();
+    const distrito = document.getElementById("distritoCliente").value.trim();
+    const departamento = document.getElementById("departamentoCliente").value.trim();
+
+    if (!direccion) {
+        alert("Ingrese una dirección.");
+        return;
+    }
+
+    if (!distrito) {
+        alert("Ingrese el distrito.");
+        return;
+    }
+
+    if (!departamento) {
+        alert("Ingrese el departamento.");
+        return;
+    }
+
+    const direccionCompleta =
+        direccion + ", " + distrito + ", " + departamento + ", Perú";
+
+    try {
+
+        const response = await fetch(
+            "https://nominatim.openstreetmap.org/search?format=jsonv2&q="
+            + encodeURIComponent(direccionCompleta)
+        );
+
+        const data = await response.json();
+
+        if (data.length === 0) {
+            alert("No se encontró la dirección. Revise dirección, distrito y departamento.");
+            return;
+        }
+
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        document.getElementById("latitud").value = lat;
+        document.getElementById("longitud").value = lon;
+
+        if (marcadorCliente) {
+            mapaCliente.removeLayer(marcadorCliente);
+        }
+
+        marcadorCliente = L.marker([lat, lon], { draggable: true }).addTo(mapaCliente);
+
+        mapaCliente.setView([lat, lon], 17);
+
+        marcadorCliente.on("dragend", function () {
+            const pos = marcadorCliente.getLatLng();
+
+            document.getElementById("latitud").value = pos.lat;
+            document.getElementById("longitud").value = pos.lng;
+        });
+
+    } catch (error) {
+        console.error(error);
+        alert("Error consultando la dirección.");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const abrir = document.getElementById("btnAbrirIncidencia");
+    const modal = document.getElementById("modalIncidencia");
+
+    if (abrir && modal) {
+
+        abrir.addEventListener("click", function () {
+
+            setTimeout(() => {
+                inicializarMapaCliente();
+            }, 300);
+
+        });
+
+    }
+
+});
+
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const codigoInput = document.getElementById("codigoCliente");
+
+    if (!codigoInput) return;
+
+    codigoInput.addEventListener("blur", function () {
+        buscarClientePorCodigo();
+    });
+});
+
+async function buscarClientePorCodigo() {
+    const codigo = document.getElementById("codigoCliente").value.trim();
+
+    if (!codigo) return;
+
+    const response = await fetch("{% url 'buscar_cliente' %}?codigo_cliente=" + encodeURIComponent(codigo));
+    const data = await response.json();
+
+    if (!data.existe) return;
+
+    document.getElementById("nombreCliente").value = data.nombre_cliente;
+    document.getElementById("celularCliente").value = data.celular;
+    document.getElementById("direccionCliente").value = data.direccion;
+    document.getElementById("distritoCliente").value = data.distrito;
+    document.getElementById("departamentoCliente").value = data.departamento;
+    document.getElementById("latitud").value = data.latitud;
+    document.getElementById("longitud").value = data.longitud;
+
+    alert("Cliente encontrado. Datos completados automáticamente.");
+}
+</script>
+
+</html>
+

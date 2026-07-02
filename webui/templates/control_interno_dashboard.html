@@ -38,127 +38,102 @@
 
     <!-- === FILTROS DE BUSQUEDA === -->
     <form method="get" class="filters">
-      <h3 class="filters__title">Filtros avanzados</h3>
+      <h3 class="filters__title">Filtros de órdenes</h3>
 
       <div class="filters__grid">
 
-        <!-- Fecha Incidencia -->
         <div class="filters__card filters__card--blue">
-          <label class="filters__label filters__label--blue">📅 Fecha de incidencia</label>
+          <label class="filters__label filters__label--blue">📅 Fecha de asignación</label>
 
           <div class="filters__row">
             <div class="filters__field">
               <label class="filters__small">Desde</label>
-              <input type="date" name="f1" value="{{ f1 }}" class="filters__input filters__input--date">
+              <input type="date" name="f_asig_desde" value="{{ f_asig_desde }}" class="filters__input filters__input--date">
             </div>
 
             <div class="filters__field">
               <label class="filters__small">Hasta</label>
-              <input type="date" name="f2" value="{{ f2 }}" class="filters__input filters__input--date">
+              <input type="date" name="f_asig_hasta" value="{{ f_asig_hasta }}" class="filters__input filters__input--date">
             </div>
           </div>
         </div>
 
-        <!-- Fecha Revisión -->
         <div class="filters__card filters__card--green">
-          <label class="filters__label filters__label--green">📋 Fecha de revisión</label>
+          <label class="filters__label filters__label--green">📋 Fecha de atención</label>
 
           <div class="filters__row">
             <div class="filters__field">
               <label class="filters__small">Desde</label>
-              <input type="date" name="r1" value="{{ r1 }}" class="filters__input filters__input--date">
+              <input type="date" name="f_aten_desde" value="{{ f_aten_desde }}" class="filters__input filters__input--date">
             </div>
 
             <div class="filters__field">
               <label class="filters__small">Hasta</label>
-              <input type="date" name="r2" value="{{ r2 }}" class="filters__input filters__input--date">
+              <input type="date" name="f_aten_hasta" value="{{ f_aten_hasta }}" class="filters__input filters__input--date">
             </div>
           </div>
         </div>
 
-        <!-- Otros filtros -->
         <div class="filters__card filters__card--white">
           <label class="filters__label filters__label--dark">🔎 Otros filtros</label>
 
           <div class="filters__row filters__row--wrap">
-            <div class="filters__field">
-              <label class="filters__small">Terminal</label>
-              <select name="terminal" id="filtroTerminal" class="filters__select filters__select--terminal">
-                <option value="">Todos</option>
-                {% for t in terminales %}
-                <option value="{{ t.id_terminal }}"
-                  {% if terminal_selected == t.id_terminal|stringformat:'s' %}selected{% endif %}>
-                  {{ t.nombre_terminal }}
-                </option>
-                {% endfor %}
-              </select>
-            </div>
 
             <div class="filters__field">
               <label class="filters__small">Estado</label>
-              <select name="estado" class="filters__select filters__select--estado">
+              <select name="estado" class="filters__select">
                 <option value="">Todos</option>
-                <option value="Conforme"  {% if estado == "Conforme"  %}selected{% endif %}>Conforme</option>
-                <option value="Observado" {% if estado == "Observado" %}selected{% endif %}>Observado</option>
-                <option value="Pendiente" {% if estado == "Pendiente" %}selected{% endif %}>Pendiente</option>
-                <option value="Resuelto"  {% if estado == "Resuelto"  %}selected{% endif %}>Resuelto</option>
+                <option value="por_atender" {% if estado == "por_atender" %}selected{% endif %}>Por atender</option>
+                <option value="atendido" {% if estado == "atendido" %}selected{% endif %}>Atendido</option>
               </select>
             </div>
 
             <div class="filters__field">
-              <label class="filters__small">Usuario</label>
-              <select name="usuario" id="filtroUsuario" class="filters__select filters__select--usuario">
+              <label class="filters__small">Técnico</label>
+              <select name="tecnico" class="filters__select">
                 <option value="">Todos</option>
-                {% for b in boleteros %}
-                <option value="{{ b.usuario }}"
-                  data-terminal="{{ b.id_terminal_id }}"
-                  {% if usuario == b.usuario %}selected{% endif %}>
-                  {{ b.usuario }}
-                </option>
+                {% for t in tecnicos %}
+                  <option value="{{ t.id_tecnico }}" {% if tecnico_selected == t.id_tecnico|stringformat:"s" %}selected{% endif %}>
+                    {{ t.id_usuario.nombre }}
+                  </option>
                 {% endfor %}
               </select>
             </div>
 
             <div class="filters__field">
-              <label class="filters__small">Control interno</label>
-              <select name="ci" class="filters__select filters__select--ci">
-                <option value="">Todos</option>
-                {% for u in usuarios_ci %}
-                <option value="{{ u.usuario_login }}"
-                  {% if ci == u.usuario_login %}selected{% endif %}>
-                  {{ u.usuario_login }}
-                </option>
+              <label class="filters__small">Zona</label>
+              <select name="zona" class="filters__select">
+                <option value="">Todas</option>
+                {% for z in zonas %}
+                  <option value="{{ z.id_zona }}" {% if zona_selected == z.id_zona|stringformat:"s" %}selected{% endif %}>
+                    {{ z.nombre_zona }}
+                  </option>
                 {% endfor %}
               </select>
+            </div>
+
+            <div class="filters__field">
+              <label class="filters__small">Código cliente</label>
+              <input type="text" name="codigo_cliente" value="{{ codigo_cliente }}" placeholder="Ej: CL001" class="filters__input">
             </div>
 
           </div>
         </div>
 
       </div>
-    
 
+      <div style="margin-top:18px; display:flex; gap:12px;">
+        <button type="submit" class="btn-filtrar">Filtrar</button>
 
-          <div style="margin-top:18px; display:flex; gap:12px;">
-              <button type="submit" class="btn-filtrar">
-                  Filtrar</button>
+        <a href="{% url 'panel_control_interno' %}" class="btn-limpiar">
+          Limpiar
+        </a>
 
-              <a href="{% url 'panel_control_interno' %}" class="btn-limpiar">
-                  Limpiar
-              </a>
-
-              <a href="{% url 'export_excel' %}?{{ request.GET.urlencode }}" class="btn-excel">
-                  Exportar Excel
-              </a>
-
-              <button type="submit"
-                  name="produccion_hoy"
-                  value="1"
-                  style="padding:9px 16px; background:#4b5563; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
-                  Producción hoy
-              </button>
-          </div>
-  </form>    
+        <a href="{% url 'export_excel' %}?{{ request.GET.urlencode }}" class="btn-excel">
+          Exportar Excel
+        </a>
+      </div>
+    </form>
 
       <!-- TABLA -->
       <div class="table-wrap">
@@ -173,6 +148,7 @@
               <th>Dirección</th>
               <th>Distrito</th>
               <th>Técnico</th>
+              <th>Usuario Técnico</th>
               <th>Estado</th>
               <th>Indicaciones</th>
               <th>Fecha Atención</th>
@@ -192,7 +168,7 @@
               <td>{{ r.direccion }}</td>
               <td>{{ r.distrito }}</td>
               <td>{{ r.tecnico|default:"Sin asignar" }}</td>
-
+              <td>{{ r.usuario_tecnico }}</td>
               <td>
                 {% if r.estado == "por_atender" %}
                   <span class="badge warn">Por atender</span>
@@ -548,6 +524,18 @@
 
 
         <label for="departamentoCliente">Departamento:</label>
+
+        
+
+        <label>Fecha de asignación:</label>
+        <input type="date" name="fecha_asignacion_manual" id="fechaAsignacionManual">
+
+        <label>Hora de asignación:</label>
+        <input type="time" name="hora_asignacion_manual" id="horaAsignacionManual">
+
+
+
+
         <input type="text"
               id="departamentoCliente"
               name="departamento"
