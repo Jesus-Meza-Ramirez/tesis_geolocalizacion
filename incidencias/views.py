@@ -107,20 +107,12 @@ def registrar_orden_atencion(request):
         departamento = request.POST.get("departamento", "").strip()
         indicaciones = request.POST.get("indicaciones", "").strip()
 
-        fecha_manual = request.POST.get("fecha_asignacion_manual", "").strip()
-        hora_manual = request.POST.get("hora_asignacion_manual", "").strip()
+        
 
         latitud = request.POST.get("latitud") or None
         longitud = request.POST.get("longitud") or None
 
         fecha_asignacion_final = datetime.now()
-
-        if fecha_manual and hora_manual:
-            fecha_hora_str = f"{fecha_manual} {hora_manual}"
-            fecha_asignacion_final = datetime.strptime(
-                fecha_hora_str,
-                "%Y-%m-%d %H:%M"
-            )
 
         cliente, creado = Cliente.objects.get_or_create(
             codigo_cliente=codigo_cliente,
@@ -226,3 +218,13 @@ def obtener_turno_por_fecha(fecha_hora):
 
     # 14:00 hasta 21:59 -> turno tarde
     return "tarde"
+
+
+
+
+
+
+
+
+
+

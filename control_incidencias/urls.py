@@ -119,6 +119,15 @@ urlpatterns = [
     views.panel_ordenes_admin,
     name="panel_ordenes_admin"
     ),
+    
+    path(
+    "ordenes/<int:id_orden>/eliminar/",
+    views.eliminar_orden,
+    name="eliminar_orden"
+    ),
+    
+    path("ordenes/<int:id_orden>/datos/", views.obtener_orden_editar, name="obtener_orden_editar"),
+    path("ordenes/<int:id_orden>/actualizar/", views.actualizar_orden, name="actualizar_orden"),
 ]
 
 if settings.DEBUG:

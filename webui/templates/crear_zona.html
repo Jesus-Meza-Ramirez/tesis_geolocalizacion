@@ -3,9 +3,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crear Zona</title>
 
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=31">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css">
 
@@ -84,8 +85,8 @@
   </aside>
 
   <section class="main">
-    <div class="title-strip">Sistema de Gestión de Técnicos con Geolocalización</div>
-
+    <div class="title-strip">Creación de zonas</div>
+    <button class="hamburger" id="btnMenu">☰</button>
     <p class="hello">Administrador del sistema — Crear nueva zona</p>
 
     <div class="zona-card">
@@ -342,6 +343,21 @@ function guardarZona() {
   });
 }
 </script>
+<script>
+const btnMenu = document.getElementById('btnMenu');
+const sidebar = document.querySelector('.sidebar');
 
+if (btnMenu && sidebar) {
+  btnMenu.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+</script>
 </body>
 </html>

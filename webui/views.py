@@ -1621,3 +1621,193 @@ def panel_ordenes_admin(request):
     }
 
     return render(request, "admin_ordenes_dashboard.html", context)
+
+
+
+
+
+@require_POST
+def eliminar_orden(request, id_orden):
+    maybe_redirect = _require_session(request)
+    if maybe_redirect:
+        return maybe_redirect
+
+    orden = get_object_or_404(OrdenAtencion, pk=id_orden)
+    orden.delete()
+
+    return redirect("panel_control_interno")
+
+
+
+
+
+
+def obtener_turno_por_fecha(fecha_hora):
+    hora = fecha_hora.hour
+
+    # 22:00 hasta 13:59 -> turno mañana
+    if hora >= 22 or hora < 14:
+        return "mañana"
+
+    # 14:00 hasta 21:59 -> turno tarde
+    return "tarde"
+
+
+
+
+def punto_en_poligono(lat, lon, poligono):
+    dentro = False
+    j = len(poligono) - 1
+
+    for i in range(len(poligono)):
+        lat_i, lon_i = poligono[i]
+        lat_j, lon_j = poligono[j]
+
+        if ((lon_i > lon) != (lon_j > lon)):
+            interseccion = (lat_j - lat_i) * (lon - lon_i) / (lon_j - lon_i) + lat_i
+
+            if lat < interseccion:
+                dentro = not dentro
+
+        j = i
+
+    return dentro
+
+
+
+def obtener_orden_editar(request, id_orden):
+    orden = get_object_or_404(
+        OrdenAtencion.objects.select_related("id_cliente", "id_tecnico", "id_zona"),
+        pk=id_orden
+    )
+
+    cliente = orden.id_cliente
+
+    return JsonResponse({
+        "id_orden": orden.id_orden,
+        "codigo_cliente": cliente.codigo_cliente,
+        "nombre_cliente": cliente.nombre_cliente,
+        "celular": cliente.celular or "",
+        "direccion": cliente.direccion,
+        "distrito": cliente.distrito or "",
+        "departamento": cliente.departamento or "",
+        "latitud": str(cliente.latitud or ""),
+        "longitud": str(cliente.longitud or ""),
+        "indicaciones": orden.indicaciones or "",
+        "estado": orden.estado,
+        "id_tecnico": orden.id_tecnico.id_tecnico if orden.id_tecnico else "",
+        "fecha_asignacion": orden.fecha_asignacion.strftime("%Y-%m-%d") if orden.fecha_asignacion else "",
+        "hora_asignacion": orden.fecha_asignacion.strftime("%H:%M") if orden.fecha_asignacion else "",
+    })
+
+
+@require_POST
+def actualizar_orden(request, id_orden):
+    orden = get_object_or_404(OrdenAtencion, pk=id_orden)
+    cliente = orden.id_cliente
+
+    codigo_cliente = request.POST.get("codigo_cliente", "").strip()
+    nombre_cliente = request.POST.get("nombre_cliente", "").strip()
+    celular = request.POST.get("celular", "").strip()
+    direccion = request.POST.get("direccion", "").strip()
+    distrito = request.POST.get("distrito", "").strip()
+    departamento = request.POST.get("departamento", "").strip()
+    indicaciones = request.POST.get("indicaciones", "").strip()
+    estado = request.POST.get("estado", "por_atender")
+
+    latitud = request.POST.get("latitud") or None
+    longitud = request.POST.get("longitud") or None
+
+    fecha_manual = request.POST.get("fecha_asignacion", "")
+    hora_manual = request.POST.get("hora_asignacion", "")
+
+    modo_asignacion = request.POST.get("modo_asignacion", "automatica")
+    tecnico_manual = request.POST.get("tecnico_manual")
+
+    fecha_asignacion_final = orden.fecha_asignacion or datetime.now()
+
+    if fecha_manual and hora_manual:
+        fecha_asignacion_final = datetime.strptime(
+            f"{fecha_manual} {hora_manual}",
+            "%Y-%m-%d %H:%M"
+        )
+
+    cliente.codigo_cliente = codigo_cliente
+    cliente.nombre_cliente = nombre_cliente
+    cliente.celular = celular
+    cliente.direccion = direccion
+    cliente.distrito = distrito
+    cliente.departamento = departamento
+    cliente.latitud = latitud
+    cliente.longitud = longitud
+    cliente.save()
+
+    orden.indicaciones = indicaciones
+    orden.estado = estado
+    orden.fecha_asignacion = fecha_asignacion_final
+
+    if modo_asignacion == "manual" and tecnico_manual:
+        orden.id_tecnico = get_object_or_404(Tecnico, pk=tecnico_manual)
+
+    else:
+        tecnico_asignado = None
+        zona_asignada = None
+
+        if latitud and longitud:
+            lat_cliente = float(latitud)
+            lon_cliente = float(longitud)
+
+            zonas_coincidentes = []
+
+            for zona in Zona.objects.filter(activo=True):
+                puntos = CoordenadaZona.objects.filter(id_zona=zona).order_by("orden_punto")
+
+                poligono = [
+                    (float(p.latitud), float(p.longitud))
+                    for p in puntos
+                ]
+
+                if len(poligono) >= 3 and punto_en_poligono(lat_cliente, lon_cliente, poligono):
+                    zonas_coincidentes.append(zona)
+
+            turno_actual = obtener_turno_por_fecha(fecha_asignacion_final)
+
+            asignaciones = TecnicoZona.objects.select_related(
+                "id_tecnico", "id_zona"
+            ).filter(
+                id_zona__in=zonas_coincidentes,
+                id_tecnico__turno=turno_actual,
+                activo=True
+            )
+
+            mejor_asignacion = None
+            menor_carga = None
+
+            for asignacion in asignaciones:
+                tecnico = asignacion.id_tecnico
+
+                pendientes = OrdenAtencion.objects.filter(
+                    id_tecnico=tecnico,
+                    estado="por_atender"
+                ).exclude(id_orden=orden.id_orden).count()
+
+                if menor_carga is None or pendientes < menor_carga:
+                    menor_carga = pendientes
+                    mejor_asignacion = asignacion
+
+            if mejor_asignacion:
+                tecnico_asignado = mejor_asignacion.id_tecnico
+                zona_asignada = mejor_asignacion.id_zona
+            elif zonas_coincidentes:
+                zona_asignada = zonas_coincidentes[0]
+
+        orden.id_tecnico = tecnico_asignado
+        orden.id_zona = zona_asignada
+
+    orden.save()
+
+    return redirect("panel_control_interno")
+
+
+
+

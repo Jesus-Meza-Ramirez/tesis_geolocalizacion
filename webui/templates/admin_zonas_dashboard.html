@@ -3,8 +3,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestión de Zonas</title>
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=31">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
 </head>
 
@@ -23,7 +24,7 @@
 
   <section class="main">
     <div class="title-strip">Gestión de Zonas</div>
-
+    <button class="hamburger" id="btnMenu">☰</button>
     <p class="hello">Administrador del sistema — Bienvenido {{ usuario_nombre }}</p>
 
     <div class="actions-bar">
@@ -80,5 +81,22 @@
     </div>
   </section>
 </div>
+
+<script>
+const btnMenu = document.getElementById('btnMenu');
+const sidebar = document.querySelector('.sidebar');
+
+if (btnMenu && sidebar) {
+  btnMenu.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+</script>
 </body>
 </html>

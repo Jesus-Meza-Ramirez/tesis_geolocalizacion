@@ -7,11 +7,13 @@
   <title>Panel | Coordinador</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
     {% load static %}
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=31">
   <link rel="stylesheet"
       href="https://unpkg.com/leaflet/dist/leaflet.css">
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  
+  
 </head>
 
 <body>
@@ -34,7 +36,7 @@
           <button class="hamburger" id="btnMenu">
               ☰
           </button>
-      <p class="hello">Bienvenido {{ usuario_nombre }} — Terminal: <strong>{{ terminal_actual }}</strong></p>
+      <p class="hello">Bienvenido {{ usuario_nombre }} — Coordinador</p>
 
     <!-- === FILTROS DE BUSQUEDA === -->
     <form method="get" class="filters">
@@ -154,6 +156,7 @@
               <th>Fecha Atención</th>
               <th>Hora Atención</th>
               <th>Observación Técnico</th>
+              <th>Acciones</th>
             </tr>
           </thead>
 
@@ -196,6 +199,24 @@
                 {% endif %}
               </td>
               <td>{{ r.observacion_tecnico|default:"—" }}</td>
+              <td>
+              <button
+                type="button"
+                class="btn-small"
+                onclick="abrirModalEditarOrden('{{ r.id_orden }}')">
+                Editar
+              </button>
+
+              <form method="post"
+                    action="{% url 'eliminar_orden' r.id_orden %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('¿Seguro que deseas eliminar esta orden?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-small" style="background:#991b1b;">
+                  Eliminar
+                </button>
+              </form>
+            </td>
             </tr>
             {% empty %}
             <tr>
@@ -436,137 +457,500 @@
   </script>
 
 
-  <!-- MODAL PARA REGISTRAR ORDEN -->
-  <div id="modalIncidencia"
-      style="
-          display:none;
-          position: fixed;
-          top: 0; left: 0;
-          width: 100%; height: 100%;
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(2px);
-          z-index: 9999;
-          padding-top: 80px;
-      ">
-    <div style="
-        background: white;
-        width: 480px;
-        max-width: 95%;
-        margin: auto;
-        padding: 24px;
-        border-radius: 10px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        position: relative;
-        font-size: 14px;
-    ">
-      <h2 style="margin-top:0; color:#e68613; font-size:22px;">Registrar orden de Atenciòn</h2>
+<!-- MODAL PARA REGISTRAR ORDEN -->
+<div id="modalIncidencia" class="modal-editar-orden">
+  <div class="modal-editar-content">
 
-      <span id="cerrarModal"
-            style="
-              position:absolute;
-              top:10px; right:12px;
-              cursor:pointer;
-              font-weight:bold;
-              color:#444;
-              font-size:18px;
-            ">✖</span>
+    <div class="modal-editar-header">
+      <h2>Registrar orden de Atención</h2>
+      <button type="button" id="cerrarModal" class="modal-close">✖</button>
+    </div>
 
-      <form method="post" action="{% url 'registrar_orden_atencion' %}">
-        {% csrf_token %}
+    <form method="post" action="{% url 'registrar_orden_atencion' %}">
+      {% csrf_token %}
 
-        <label for="codigoCliente">Código del cliente:</label>
-        <input type="text" id="codigoCliente" name="codigo_cliente"
-              placeholder="Ejemplo: CL001" required
-              style="width:100%; margin-bottom:10px;">
+      <div class="form-grid-editar">
 
-        <label for="nombreCliente">Nombre del cliente:</label>
-        <input type="text" id="nombreCliente" name="nombre_cliente"
-              placeholder="Nombre del cliente" required
-              style="width:100%; margin-bottom:10px;">
+        <div>
+          <label>Código cliente</label>
+          <input type="text" id="codigoCliente" name="codigo_cliente" placeholder="Ejemplo: CL001" required>
+        </div>
 
-        <label for="celularCliente">Celular:</label>
-        <input type="text" id="celularCliente" name="celular"
-              placeholder="Número de celular"
-              style="width:100%; margin-bottom:10px;">
+        <div>
+          <label>Cliente</label>
+          <input type="text" id="nombreCliente" name="nombre_cliente" placeholder="Nombre del cliente" required>
+        </div>
 
-        <label for="direccionCliente">Dirección:</label>
-        <input type="text" id="direccionCliente" name="direccion"
-              placeholder="Dirección del cliente" required
-              style="width:100%; margin-bottom:10px;">
-        
-        
+        <div>
+          <label>Celular</label>
+          <input type="text" id="celularCliente" name="celular" placeholder="Número de celular">
+        </div>
+
+        <div>
+          <label>Distrito</label>
+          <input type="text" id="distritoCliente" name="distrito" placeholder="Distrito">
+        </div>
+
+        <div class="full-field">
+          <label>Dirección</label>
+          <input type="text" id="direccionCliente" name="direccion" placeholder="Dirección del cliente" required>
+        </div>
+
+        <div>
+          <label>Departamento</label>
+          <input type="text" id="departamentoCliente" name="departamento" placeholder="Ejemplo: Lima">
+        </div>
 
 
 
+        <div class="full-field">
+          <button type="button" class="btn-buscar-editar" onclick="buscarDireccion()">
+            Buscar ubicación
+          </button>
 
+          <div id="mapaCliente"
+               style="height:280px; width:100%; margin-top:12px; border-radius:10px; border:1px solid #ddd;">
+          </div>
+        </div>
 
-              <button type="button"
-                      onclick="buscarDireccion()"
-                      style="margin-bottom:10px; padding:8px 12px;">
-                  Buscar ubicación
-              </button>
+        <div class="full-field">
+          <label>Indicaciones</label>
+          <textarea id="indicacionesOrden" name="indicaciones" placeholder="Ingrese indicaciones para el técnico"></textarea>
+        </div>
 
-              <div id="mapaCliente"
-                  style="height:300px; width:100%; margin-bottom:10px;">
-              </div>
+      </div>
 
-              <input type="hidden" id="latitud" name="latitud">
-              <input type="hidden" id="longitud" name="longitud">
-        
+      <input type="hidden" id="latitud" name="latitud">
+      <input type="hidden" id="longitud" name="longitud">
 
-
-
-        <label for="distritoCliente">Distrito:</label>
-        <input type="text" id="distritoCliente" name="distrito"
-              placeholder="Distrito"
-              style="width:100%; margin-bottom:10px;">
-
-
-
-        <label for="departamentoCliente">Departamento:</label>
-
-        
-
-        <label>Fecha de asignación:</label>
-        <input type="date" name="fecha_asignacion_manual" id="fechaAsignacionManual">
-
-        <label>Hora de asignación:</label>
-        <input type="time" name="hora_asignacion_manual" id="horaAsignacionManual">
-
-
-
-
-        <input type="text"
-              id="departamentoCliente"
-              name="departamento"
-              placeholder="Ejemplo: Lima"
-              style="width:100%; margin-bottom:10px;">
-        
-
-
-
-
-
-        <label for="indicacionesOrden">Indicaciones:</label>
-        <textarea id="indicacionesOrden" name="indicaciones"
-                  placeholder="Ingrese indicaciones para el técnico"
-                  style="width:100%; height:90px; margin-bottom:10px;"></textarea>
-
-        <button type="submit"
-          style="margin-top:5px; width:100%; padding:10px; background:#e68613; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+      <div class="modal-editar-actions">
+        <button type="submit" class="btn-guardar-editar">
           Guardar orden de atención
         </button>
-      </form>
-    </div>
+
+        <button type="button" class="btn-cancelar-editar" id="btnCancelarRegistro">
+          Cancelar
+        </button>
+      </div>
+    </form>
   </div>
+</div>
 
+<!-- MODAL EDITAR ORDEN -->
+<div id="modalEditarOrden" class="modal-editar-orden">
+  <div class="modal-editar-content">
 
+    <div class="modal-editar-header">
+      <h2>Editar orden</h2>
+      <button type="button" class="modal-close" onclick="cerrarModalEditarOrden()">✖</button>
+    </div>
 
+    <form id="formEditarOrden" method="post">
+      {% csrf_token %}
 
-</body>
+      <div class="form-grid-editar">
+
+        <div>
+          <label>Código cliente</label>
+          <input type="text" name="codigo_cliente" id="editCodigoCliente" required>
+        </div>
+
+        <div>
+          <label>Cliente</label>
+          <input type="text" name="nombre_cliente" id="editNombreCliente" required>
+        </div>
+
+        <div>
+          <label>Celular</label>
+          <input type="text" name="celular" id="editCelular">
+        </div>
+
+        <div>
+          <label>Distrito</label>
+          <input type="text" name="distrito" id="editDistrito">
+        </div>
+
+        <div class="full-field">
+          <label>Dirección</label>
+          <input type="text" name="direccion" id="editDireccion" required>
+        </div>
+
+        <div>
+          <label>Departamento</label>
+          <input type="text" name="departamento" id="editDepartamento">
+        </div>
+
+        <div>
+          <label>Estado</label>
+          <select name="estado" id="editEstado">
+            <option value="por_atender">Por atender</option>
+            <option value="atendido">Atendido</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Fecha asignación</label>
+          <input type="date" name="fecha_asignacion" id="editFechaAsignacion">
+        </div>
+
+        <div>
+          <label>Hora asignación</label>
+          <input type="time" name="hora_asignacion" id="editHoraAsignacion">
+        </div>
+
+        <div class="full-field">
+          <button type="button" class="btn-buscar-editar" onclick="buscarDireccionEditar()">
+            Buscar ubicación
+          </button>
+
+          <div id="mapaEditarOrden"></div>
+        </div>
+
+        <div class="full-field">
+          <label>Indicaciones</label>
+          <textarea name="indicaciones" id="editIndicaciones"></textarea>
+        </div>
+
+      </div>
+
+      <input type="hidden" name="latitud" id="editLatitud">
+      <input type="hidden" name="longitud" id="editLongitud">
+
+      <div class="asignacion-box">
+        <h3>Asignación del técnico</h3>
+
+        <div class="form-grid-editar">
+          <div>
+            <label>Modo de asignación</label>
+            <select name="modo_asignacion" id="editModoAsignacion">
+              <option value="automatica">Automática</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Técnico manual</label>
+            <select name="tecnico_manual" id="editTecnicoManual">
+              <option value="">Seleccione técnico</option>
+              {% for t in tecnicos %}
+                <option value="{{ t.id_tecnico }}">
+                  {{ t.id_usuario.nombre }} - {{ t.turno|default:"Sin turno" }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-editar-actions">
+        <button type="submit" class="btn-guardar-editar">Guardar cambios</button>
+        <button type="button" class="btn-cancelar-editar" onclick="cerrarModalEditarOrden()">Cancelar</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<style>
+.modal-editar-orden {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.60);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  padding: 40px 15px;
+  overflow-y: auto;
+}
+
+.modal-editar-content {
+  background: #fff;
+  width: 900px;
+  max-width: 95%;
+  margin: auto;
+  padding: 26px;
+  border-radius: 14px;
+  box-shadow: 0 15px 35px rgba(0,0,0,.25);
+}
+
+.modal-editar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.modal-editar-header h2 {
+  margin: 0;
+  color: #e68613;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.form-grid-editar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-grid-editar label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.form-grid-editar input,
+.form-grid-editar select,
+.form-grid-editar textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-grid-editar textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.full-field {
+  grid-column: 1 / -1;
+}
+
+#mapaEditarOrden {
+  height: 280px;
+  width: 100%;
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.btn-buscar-editar {
+  background: #1f2937;
+  color: white;
+  border: none;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.asignacion-box {
+  margin-top: 24px;
+  padding: 18px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.asignacion-box h3 {
+  margin: 0 0 16px 0;
+  color: #1f2937;
+  font-size: 18px;
+}
+
+.modal-editar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-guardar-editar,
+.btn-cancelar-editar {
+  border: none;
+  padding: 11px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.btn-guardar-editar {
+  background: #f28c13;
+  color: white;
+}
+
+.btn-cancelar-editar {
+  background: #991b1b;
+  color: white;
+}
+
+@media (max-width: 700px) {
+  .form-grid-editar {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 
 <script>
+let mapaEditar = null;
+let marcadorEditar = null;
 
+function abrirModalEditarOrden(idOrden) {
+  fetch(`/ordenes/${idOrden}/datos/`)
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById("formEditarOrden").action = `/ordenes/${idOrden}/actualizar/`;
+
+      document.getElementById("editCodigoCliente").value = data.codigo_cliente;
+      document.getElementById("editNombreCliente").value = data.nombre_cliente;
+      document.getElementById("editCelular").value = data.celular;
+      document.getElementById("editDireccion").value = data.direccion;
+      document.getElementById("editDistrito").value = data.distrito;
+      document.getElementById("editDepartamento").value = data.departamento;
+      document.getElementById("editLatitud").value = data.latitud;
+      document.getElementById("editLongitud").value = data.longitud;
+      document.getElementById("editFechaAsignacion").value = data.fecha_asignacion;
+      document.getElementById("editHoraAsignacion").value = data.hora_asignacion;
+      document.getElementById("editEstado").value = data.estado;
+      document.getElementById("editIndicaciones").value = data.indicaciones;
+
+      document.getElementById("editModoAsignacion").value = "automatica";
+      document.getElementById("editTecnicoManual").value = data.id_tecnico;
+      actualizarEstadoTecnicoManual();
+      document.getElementById("modalEditarOrden").style.display = "block";
+
+      setTimeout(() => {
+        inicializarMapaEditar();
+
+        if (data.latitud && data.longitud) {
+          colocarMarcadorEditar(data.latitud, data.longitud);
+        } else {
+          mapaEditar.setView([-12.0464, -77.0428], 12);
+        }
+      }, 300);
+    })
+    .catch(error => {
+      console.error(error);
+      alert("No se pudo cargar la orden.");
+    });
+}
+
+function cerrarModalEditarOrden() {
+  document.getElementById("modalEditarOrden").style.display = "none";
+}
+
+function inicializarMapaEditar() {
+  if (mapaEditar) {
+    setTimeout(() => {
+      mapaEditar.invalidateSize();
+    }, 200);
+    return;
+  }
+
+  mapaEditar = L.map("mapaEditarOrden").setView([-12.0464, -77.0428], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(mapaEditar);
+
+  setTimeout(() => {
+    mapaEditar.invalidateSize();
+  }, 200);
+}
+
+function colocarMarcadorEditar(lat, lon) {
+  lat = parseFloat(lat);
+  lon = parseFloat(lon);
+
+  document.getElementById("editLatitud").value = lat;
+  document.getElementById("editLongitud").value = lon;
+
+  if (marcadorEditar) {
+    mapaEditar.removeLayer(marcadorEditar);
+  }
+
+  marcadorEditar = L.marker([lat, lon], { draggable: true }).addTo(mapaEditar);
+
+  mapaEditar.setView([lat, lon], 17);
+
+  marcadorEditar.on("dragend", function () {
+    const pos = marcadorEditar.getLatLng();
+
+    document.getElementById("editLatitud").value = pos.lat;
+    document.getElementById("editLongitud").value = pos.lng;
+  });
+}
+
+async function buscarDireccionEditar() {
+  const direccion = document.getElementById("editDireccion").value.trim();
+  const distrito = document.getElementById("editDistrito").value.trim();
+  const departamento = document.getElementById("editDepartamento").value.trim();
+
+  if (!direccion) {
+    alert("Ingrese la dirección.");
+    return;
+  }
+
+  if (!distrito) {
+    alert("Ingrese el distrito.");
+    return;
+  }
+
+  if (!departamento) {
+    alert("Ingrese el departamento.");
+    return;
+  }
+
+  const direccionCompleta = direccion + ", " + distrito + ", " + departamento + ", Perú";
+
+  try {
+    const response = await fetch(
+      "https://nominatim.openstreetmap.org/search?format=jsonv2&q=" +
+      encodeURIComponent(direccionCompleta)
+    );
+
+    const data = await response.json();
+
+    if (data.length === 0) {
+      alert("No se encontró la dirección. Revise dirección, distrito y departamento.");
+      return;
+    }
+
+    colocarMarcadorEditar(data[0].lat, data[0].lon);
+
+  } catch (error) {
+    console.error(error);
+    alert("Error consultando la dirección.");
+  }
+}
+</script>
+
+
+<script>
+function actualizarEstadoTecnicoManual() {
+  const modo = document.getElementById("editModoAsignacion");
+  const tecnico = document.getElementById("editTecnicoManual");
+
+  if (modo.value === "automatica") {
+    tecnico.disabled = true;
+    tecnico.value = "";
+    tecnico.style.backgroundColor = "#e5e7eb";
+    tecnico.style.cursor = "not-allowed";
+  } else {
+    tecnico.disabled = false;
+    tecnico.style.backgroundColor = "white";
+    tecnico.style.cursor = "pointer";
+  }
+}
+
+document.getElementById("editModoAsignacion").addEventListener("change", actualizarEstadoTecnicoManual);
+</script>
+
+
+
+<script>
 let mapaCliente = null;
 let marcadorCliente = null;
 
@@ -589,10 +973,32 @@ function inicializarMapaCliente() {
         }
     ).addTo(mapaCliente);
 
+    mapaCliente.on("click", function (e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+
+        document.getElementById("latitud").value = lat;
+        document.getElementById("longitud").value = lon;
+
+        if (marcadorCliente) {
+            mapaCliente.removeLayer(marcadorCliente);
+        }
+
+        marcadorCliente = L.marker([lat, lon], { draggable: true }).addTo(mapaCliente);
+
+        marcadorCliente.on("dragend", function () {
+            const pos = marcadorCliente.getLatLng();
+
+            document.getElementById("latitud").value = pos.lat;
+            document.getElementById("longitud").value = pos.lng;
+        });
+    });
+
     setTimeout(() => {
         mapaCliente.invalidateSize();
     }, 200);
 }
+
 
 async function buscarDireccion() {
 
@@ -712,6 +1118,33 @@ async function buscarClientePorCodigo() {
     alert("Cliente encontrado. Datos completados automáticamente.");
 }
 </script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const cerrar = document.getElementById("cerrarModal");
+  const cancelar = document.getElementById("btnCancelarRegistro");
+  const modal = document.getElementById("modalIncidencia");
+
+  if (cerrar && modal) {
+    cerrar.addEventListener("click", function () {
+      modal.style.display = "none";
+    });
+  }
+
+  if (cancelar && modal) {
+    cancelar.addEventListener("click", function () {
+      modal.style.display = "none";
+    });
+  }
+});
+</script>
+
+</body>
+
+
+
+
 
 </html>
 

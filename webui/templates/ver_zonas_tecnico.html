@@ -3,9 +3,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ver zonas del técnico</title>
 
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=31">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
 
   <style>
@@ -50,9 +51,10 @@
   </aside>
 
   <section class="main">
-    <div class="title-strip">Sistema de Gestión de Técnicos con Geolocalización</div>
-
+    <div class="title-strip">Zona técnico</div>
+    <button class="hamburger" id="btnMenu">☰</button>
     <p class="hello">Zonas asignadas al técnico</p>
+    
 
     <div class="zona-card">
       <a href="{% url 'panel_boleteros' %}" class="btn-back">Volver</a>
@@ -95,6 +97,21 @@ if (boundsGeneral) {
   mapa.fitBounds(boundsGeneral);
 }
 </script>
+<script>
+const btnMenu = document.getElementById('btnMenu');
+const sidebar = document.querySelector('.sidebar');
 
+if (btnMenu && sidebar) {
+  btnMenu.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!sidebar.contains(e.target) && !btnMenu.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+</script>
 </body>
 </html>
